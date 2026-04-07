@@ -3,23 +3,20 @@ import { VimMode } from './VimState';
 export class VimEngine {
 	public cursorCol: number = 0;
 	public cursorRow: number = 0;
-	public lines: string[] = [
-		'Welcome to Vim Game!',
-		'Use h, j, k, l to move.',
-		'Try w, e, b for word motions.',
-		'Try counts: 3w, 2x, 5l.',
-		'Try actions: o, a, s, r, f.'
-	];
+	public lines: string[] = Array(30).fill('');
 	public mode: VimMode = 'NORMAL';
 	public commandCount: number = 0;
 	public pendingOperator: 'd' | 'y' | 'c' | null = null;
 	public pendingAction: 'r' | 'f' | 'F' | 't' | 'T' | null = null;
+	public visualStart: {col: number, row: number} | null = null;
 
 	// View callbacks
 	public onRenderRow?: (row: number) => void;
 	public onRenderAll?: () => void;
 	public onCursorMoved?: () => void;
 	public onStatusUpdate?: (leftStatus: string, rightStatus: string) => void;
+	public onPaste?: (row: number, col: number, index: number) => void;
+	public onYank?: (pattern: string[]) => void;
 
 	public handleKeyDown(event: KeyboardEvent) {
 		if (event.key === 'Escape') {
@@ -62,19 +59,9 @@ export class VimEngine {
 
 	private handleInsertMode(event: KeyboardEvent) {
 		if (event.key === 'Enter') {
-			while (this.lines.length <= this.cursorRow) this.lines.push('');
-			let currentLine = this.lines[this.cursorRow] || '';
-			if (this.cursorCol > currentLine.length) {
-				currentLine = currentLine.padEnd(this.cursorCol, ' ');
-			}
-			const remainder = currentLine.slice(this.cursorCol);
-			this.lines[this.cursorRow] = currentLine.slice(0, this.cursorCol);
-
-			const nextLine = ' '.repeat(this.cursorCol) + remainder;
-			this.lines.splice(this.cursorRow + 1, 0, nextLine);
-
-			this.triggerRenderAll();
 			this.cursorRow++;
+			this.cursorCol = 0;
+			this.triggerCursorMoved();
 		} else if (event.key === 'Backspace') {
 			if (this.cursorCol > 0) {
 				this.deleteText(this.cursorCol - 1, this.cursorRow, 1);
@@ -192,14 +179,16 @@ export class VimEngine {
 			case 'r': this.pendingAction = 'r'; clearState = false; break;
 			case 'f': this.pendingAction = 'f'; clearState = false; break;
 			case 'd':
-			case 'y':
 			case 'c':
 				if (this.pendingOperator === key) {
 					// Linewise operator
-					this.lines.splice(this.cursorRow, count);
-					if (this.lines.length === 0) this.lines.push('');
+					const countToModify = count === 0 ? 1 : count;
+					for (let i = 0; i < countToModify; i++) {
+						if (this.cursorRow + i < this.lines.length) {
+							this.lines[this.cursorRow + i] = '';
+						}
+					}
 					this.triggerRenderAll();
-					this.cursorRow = Math.min(this.cursorRow, this.lines.length - 1);
 					this.pendingOperator = null;
 					this.commandCount = 0;
 					clearState = false; // logic resolved
@@ -207,6 +196,43 @@ export class VimEngine {
 					this.pendingOperator = key;
 					clearState = false;
 				}
+				break;
+			case 'y':
+				if (this.mode === 'VISUAL' && this.visualStart) {
+					const startRow = Math.min(this.visualStart.row, this.cursorRow);
+					const endRow = Math.max(this.visualStart.row, this.cursorRow);
+					const startCol = Math.min(this.visualStart.col, this.cursorCol);
+					const endCol = Math.max(this.visualStart.col, this.cursorCol);
+					
+					const pattern: string[] = [];
+					for (let r = startRow; r <= endRow; r++) {
+						let line = this.lines[r] || '';
+						if (line.length < endCol + 1) line = line.padEnd(endCol + 1, ' ');
+						pattern.push(line.slice(startCol, endCol + 1));
+					}
+					
+					if (this.onYank) {
+						this.onYank(pattern);
+					}
+					
+					this.setMode('NORMAL');
+					clearState = true;
+				} else if (this.pendingOperator === key) {
+					// Linewise operator (we don't strictly implement clipboard text yet)
+					this.pendingOperator = null;
+					this.commandCount = 0;
+					clearState = false;
+				} else {
+					this.pendingOperator = key;
+					clearState = false;
+				}
+				break;
+			case 'p':
+				if (this.onPaste) {
+					this.onPaste(this.cursorRow, this.cursorCol, this.commandCount === 0 ? 0 : this.commandCount - 1);
+				}
+				this.commandCount = 0;
+				clearState = false;
 				break;
 			case 'h':
 			case 'j':
@@ -330,6 +356,11 @@ export class VimEngine {
 
 	private setMode(newMode: VimMode) {
 		this.mode = newMode;
+		if (newMode === 'VISUAL') {
+			this.visualStart = { col: this.cursorCol, row: this.cursorRow };
+		} else {
+			this.visualStart = null;
+		}
 		this.updateStatusBar();
 	}
 
@@ -343,6 +374,11 @@ export class VimEngine {
 		if (this.onStatusUpdate) {
 			this.onStatusUpdate(statusText, rightText);
 		}
+	}
+
+	/** Public: replace a single character in the buffer (used by TowerSystem on tower death). */
+	public setChar(col: number, row: number, char: string) {
+		this.replaceChar(col, row, char);
 	}
 
 	private replaceChar(col: number, row: number, char: string) {
