@@ -1,52 +1,76 @@
-# Vim Tower Defense
+# VimArena - A Tower Defense Game
 
-A unique tower defense game where the battlefield is a Vim-like text editor. Built with [Phaser 3](https://phaser.io/) and TypeScript.
+Vim Tower Defense is a specialized strategy game where the battlefield is a functional Vim-like text editor. Players must utilize authentic Vim motions, operators, and modes to navigate the environment, construct defenses, and survive endless waves of incoming enemies.
 
-## Concept
+![Vim Tower Defense Gameplay](./public/assets/screenshot.png)
 
-In this game, you don't just click to place towers—you use real Vim motions! 
-- **The Arena:** The game board is a text editor. Different file types serve as different arenas.
-- **The Mechanics:** Navigate using standard Vim motions (like `h`, `j`, `k`, `l`, `w`, `b`). 
-- **The Goal:** Use characters to build defensive structures or attacking objects by leveraging Vim operators, counts, and modes (Normal and Insert) to defend against incoming threats.
-- **Learn as you Play:** A fun and interactive way to master Vim commands and improve your text-editing speed.
+## Core Concept
 
-## Features
+In Vim Tower Defense, the text buffer is not just a display—it is the physical arena. Every character in the buffer can represent a wall, a component of a tower, or open space. The game bridges the gap between text editing mastery and strategic tower defense gameplay.
 
-* **Robust Vim Motion Engine:** Support for standard movement, counts, and operators.
-* **Modes:** Seamless switching between Normal and Insert modes.
-* **Infinite Canvas:** Navigate through text and open space with infinite scrolling.
-* **Typing & Editing Behaviors:** Intuitive text editing built directly into the game engine.
+The player's efficiency is directly tied to their fluency with Vim commands. Faster navigation leads to faster response times, and a deeper understanding of operators allows for more complex battlefield manipulation.
 
-## Getting Started
+## Gameplay Mechanics
 
-### Prerequisites
+### Navigation and Interaction
+The player controls a standard Vim cursor. Movement is handled through traditional keys like `h`, `j`, `k`, `l`, as well as more advanced word-jumps (`w`, `b`, `e`) and line-anchors (`0`, `$`). The engine supports numeric counts (e.g., `10j`), allowing for rapid traversal of the grid.
 
-You need [Node.js](https://nodejs.org) installed to run the project.
+### The Construction System
+Construction is divided into two primary categories:
 
-### Installation
+1.  **Improvised Walls**: By entering Insert Mode (`i`, `a`, `I`, `A`), the player can type directly into the buffer. Every character typed becomes a "Wall" with 1 HP. These structures are ideal for quick, low-cost blocking and diverting enemy paths.
+2.  **Specialized Towers**: Using the Yank (`y`) and Paste (`p`) mechanism, players can deploy pre-configured ASCII structures. These towers possess various stats such as range, rate of fire, and damage.
 
-1. Clone this repository.
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+### Economy and Progression
+The game features a global Credit system.
+- **Earning**: Every enemy defeated grants exactly 1 Credit.
+- **Spending**: Pasting a specialized tower deductions a set amount of Credits from the global pool. Unlike early versions of the game, pasting one item does not reset the progress of others; it simply subtracts from the shared balance.
 
-### Running the Game
+### Hybrid Difficulty Scaling
+To ensure a balanced experience, the game employs a non-linear difficulty curve:
+- **Early Game**: A square-root time component ensures the game starts quickly, avoiding a slow or boring introduction.
+- **Mid-to-Late Game**: Difficulty scaling transitions to a hybrid model based on both total survival time and total kill count. This rewards high-efficiency play while ensuring the challenge keeps pace with the player's expansion.
 
-Start the local development server:
-```bash
-npm run dev
-```
+## Control Reference
 
-### Building for Production
+### Normal Mode Navigation
+| Command | Action |
+|:---|:---|
+| **h / j / k / l** | Move cursor one cell Left, Down, Up, or Right. |
+| **w / b / e** | Jump to the start of the next word, previous word, or end of the current word. |
+| **0 / $** | Jump directly to the beginning or end of the current line. |
+| **[count] + motion** | Repeat a motion N times (e.g., `5j` to move 5 lines down). |
 
-Create a production-ready build in the `dist/` folder:
-```bash
-npm run build
-```
+### Operators and Actions
+| Command | Action |
+|:---|:---|
+| **v** | Enter Visual Mode to select patterns. |
+| **y / yy** | Yank (copy) the current selection or the whole line into the clipboard. |
+| **p / [count]p** | Paste from the clipboard slot N (e.g., `1p` for tower slot 1, `2p` for 2). |
+| **d / dd** | Delete the current selection or line. |
+| **c / cc** | Change the current selection or line (deletes and enters Insert Mode). |
+| **i / a** | Enter Insert Mode before or after the cursor. |
+| **I / A** | Enter Insert Mode at the start or end of the line. |
 
-## Tech Stack
+### Insert Mode
+| Command | Action |
+|:---|:---|
+| **Esc** | Return to Normal Mode. |
+| **Any Character** | Places a 1-HP wall at the current cursor location in the buffer. |
+| **Backspace** | Deletes the character/structure before the cursor. |
 
-* [Phaser 3](https://github.com/phaserjs/phaser) - Game engine
-* [Vite](https://vitejs.dev/) - Frontend tooling and bundling
-* [TypeScript](https://www.typescriptlang.org/) - Typed JavaScript
+## Technical Architecture
+
+The game is built using the following technologies:
+
+- **Phaser 3**: Utilized for high-performance rendering of the text grid, projectiles, and particle effects.
+- **Custom Vim Engine**: A bespoke TypeScript implementation of the Vim state machine, handling mode switching, command parsing, and buffer manipulation.
+- **System-Based Design**: The logic is decoupled into specialized systems (e.g., `EnemySystem`, `TowerSystem`, `CombatSystem`) to maintain a clean and extensible codebase.
+
+## Development and Deployment
+
+| Stage | Command | Description |
+|:---|:---|:---|
+| **Installation** | `npm install` | Installs all necessary project dependencies. |
+| **Development** | `npm run dev` | Launches the local server (typically at `http://localhost:8080`). |
+| **Build** | `npm run build` | Generates a minified, production-ready bundle in the `dist/` directory. |

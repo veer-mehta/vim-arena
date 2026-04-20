@@ -1,4 +1,4 @@
-import { VimMode } from './VimState';
+type VimMode = 'NORMAL' | 'INSERT' | 'VISUAL';
 
 export class VimEngine {
 	public cursorCol: number = 0;
