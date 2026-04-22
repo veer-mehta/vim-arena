@@ -103,10 +103,30 @@ export class EnemySystem {
             y = scrollY + vpH + margin;
         }
 
+        const baseSpeed = 90 * Math.sqrt(diff);
+        let speed = baseSpeed;
+        let hp = 1 + Math.floor((diff - 1) * 2);
+        let color = 0xee3333;
+
+        const rand = Math.random();
+        if (diff > 1.5 && rand < 0.25) {
+            // Fast
+            speed = baseSpeed * 1.8;
+            hp = Math.max(1, Math.floor(hp * 0.5));
+            color = 0x33ee33;
+        } else if (diff > 2.0 && rand > 0.75) {
+            // Tank
+            speed = baseSpeed * 0.4;
+            hp = Math.max(3, hp * 3);
+            color = 0x3333ee;
+        }
+
         this.enemies.push(new Enemy(
             this.scene,
             x, y,
-            90 * Math.sqrt(diff)
+            speed,
+            hp,
+            color
         ));
     }
 

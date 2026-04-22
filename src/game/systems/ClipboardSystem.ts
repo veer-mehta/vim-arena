@@ -33,6 +33,28 @@ export class ClipboardSystem {
                 currentKills: 0 // Starts empty
             });
         }
+        
+        const wall = TOWER_TYPES['wall'];
+        if (wall) {
+            this.clipboard.push({
+                towerType: wall,
+                position: {row: 0, col: 0},
+                pattern: [...wall.pattern],
+                baseKillsRequired: 15,
+                currentKills: 0
+            });
+        }
+        
+        const pulse = TOWER_TYPES['pulse'];
+        if (pulse) {
+            this.clipboard.push({
+                towerType: pulse,
+                position: {row: 0, col: 0},
+                pattern: [...pulse.pattern],
+                baseKillsRequired: 30,
+                currentKills: 0
+            });
+        }
     }
 
     public getEntryCost(entry: ClipboardEntry): number {

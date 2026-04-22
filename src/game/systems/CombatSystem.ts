@@ -23,7 +23,37 @@ export class CombatSystem {
 
         // Towers fire at nearest in-range enemy with predictive targeting
         for (const tower of towers) {
-            if (!tower.canFire()) continue;
+            if (!tower.canFire() || tower.type.damage <= 0) continue;
+
+            if (tower.type.isAoe) {
+                let didFire = false;
+                for (const e of enemies) {
+                    if (e.isDead || e.hasExited) continue;
+                    const d = Math.hypot(e.x - tower.worldX, e.y - tower.worldY);
+                    if (d <= tower.type.range) {
+                        e.takeDamage(tower.type.damage);
+                        if (e.isDead) {
+                            this.gameState.addKill();
+                            this.towerSystem.clipboard.onEnemyKilled();
+                        }
+                        didFire = true;
+                    }
+                }
+                
+                if (didFire) {
+                    tower.resetFireCooldown();
+                    const circle = this.scene.add.circle(tower.worldX, tower.worldY, tower.type.range, tower.type.color, 0.3);
+                    circle.setDepth(15);
+                    this.scene.tweens.add({
+                        targets: circle,
+                        alpha: 0,
+                        duration: 300,
+                        onComplete: () => circle.destroy()
+                    });
+                }
+                continue;
+            }
+
             let nearest: Enemy | null = null;
             let nearestDist = Infinity;
             for (const e of enemies) {

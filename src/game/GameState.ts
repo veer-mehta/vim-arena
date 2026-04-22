@@ -3,10 +3,13 @@ export class GameState {
     public elapsedSeconds: number = 0;
     public isGameOver: boolean = false;
     public towerCount: number = 0;
+    public energy: number = 0;
+    public readonly ULTIMATE_COST: number = 20;
 
     public onKillsChange?: (kills: number) => void;
     public onGameOver?: () => void;
     public onTowerCountChange?: (count: number) => void;
+    public onEnergyChange?: (energy: number) => void;
 
     constructor() {
         // No more player lives - game ends when all towers are destroyed
@@ -40,7 +43,18 @@ export class GameState {
 
     addKill(): void {
         this.kills += 1;
+        this.energy += 1;
         this.onKillsChange?.(this.kills);
+        this.onEnergyChange?.(this.energy);
+    }
+
+    tryUltimate(): boolean {
+        if (this.energy >= this.ULTIMATE_COST) {
+            this.energy -= this.ULTIMATE_COST;
+            this.onEnergyChange?.(this.energy);
+            return true;
+        }
+        return false;
     }
 
     getTimeString(): string {

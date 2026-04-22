@@ -7,8 +7,9 @@ import { GameState } from '../GameState';
 
 // Initial predefined tower placements
 const INITIAL_TOWERS: Array<{row: number, type: string}> = [
-    {row: 10, type: 'sniper'},
-    {row: 20, type: 'rapid'},
+    {row: 5, type: 'sniper'},
+    {row: 15, type: 'pulse'},
+    {row: 25, type: 'rapid'},
 ];
 
 export class TowerSystem {
@@ -19,18 +20,20 @@ export class TowerSystem {
     private readonly fontWidth: number;
     private readonly fontHeight: number;
     private readonly clipboardSystem: ClipboardSystem;
+    private readonly centerCol: number;
     private towers: Map<string, Tower> = new Map();
     private towerPatterns: Map<string, {type: string, startCol: number, startRow: number}> = new Map();
 
     public onTowerDestroyed?: (col: number, row: number) => void;
 
-    constructor(scene: Scene, vim: VimEngine, gutterWidth: number, fontWidth: number, fontHeight: number, gameState: GameState) {
+    constructor(scene: Scene, vim: VimEngine, gutterWidth: number, fontWidth: number, fontHeight: number, gameState: GameState, centerCol: number = 35) {
         this.scene = scene;
         this.vim = vim;
         this.gameState = gameState;
         this.gutterWidth = gutterWidth;
         this.fontWidth = fontWidth;
         this.fontHeight = fontHeight;
+        this.centerCol = centerCol;
         this.clipboardSystem = new ClipboardSystem(gameState);
         this.vim.onPaste = (row: number, col: number, index: number) => this.handlePaste(row, col, index);
         this.vim.onYank = (pattern: string[]) => {
@@ -52,7 +55,7 @@ export class TowerSystem {
             }
             
             // Place the tower pattern
-            const startCol = 10; // Start position for initial towers
+            const startCol = this.centerCol; // Dynamic center position
             for (let i = 0; i < towerType.pattern.length; i++) {
                 const patternLine = towerType.pattern[i];
                 const lineIndex = initial.row + i;

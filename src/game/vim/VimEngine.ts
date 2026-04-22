@@ -1,4 +1,4 @@
-type VimMode = 'NORMAL' | 'INSERT' | 'VISUAL';
+type VimMode = 'NORMAL' | 'INSERT' | 'VISUAL' | 'COMMAND';
 
 export class VimEngine {
 	public cursorCol: number = 0;
@@ -9,14 +9,18 @@ export class VimEngine {
 	public pendingOperator: 'd' | 'y' | 'c' | null = null;
 	public pendingAction: 'r' | 'f' | 'F' | 't' | 'T' | null = null;
 	public visualStart: {col: number, row: number} | null = null;
+	public commandBuffer: string = '';
 
 	// View callbacks
+	public onUltimate?: () => void;
 	public onRenderRow?: (row: number) => void;
 	public onRenderAll?: () => void;
 	public onCursorMoved?: () => void;
 	public onStatusUpdate?: (leftStatus: string, rightStatus: string) => void;
 	public onPaste?: (row: number, col: number, index: number) => void;
 	public onYank?: (pattern: string[]) => void;
+	public onQuit?: () => void;
+	public onLeaderboard?: () => void;
 
 	public handleKeyDown(event: KeyboardEvent) {
 		if (event.key === 'Escape') {
@@ -52,6 +56,11 @@ export class VimEngine {
 			return;
 		}
 
+		if (this.mode === 'COMMAND') {
+			this.handleCommandMode(event);
+			return;
+		}
+
 		if (this.mode === 'NORMAL' || this.mode === 'VISUAL') {
 			this.handleNormalMode(event);
 		}
@@ -72,6 +81,30 @@ export class VimEngine {
 			this.cursorCol++;
 		}
 		this.triggerCursorMoved();
+	}
+
+	private handleCommandMode(event: KeyboardEvent) {
+		if (event.key === 'Enter') {
+			if (this.commandBuffer === ':wq') {
+				if (this.onUltimate) this.onUltimate();
+			} else if (this.commandBuffer === ':db') {
+				if (this.onQuit) this.onQuit();
+			} else if (this.commandBuffer === ':lb') {
+				if (this.onLeaderboard) this.onLeaderboard();
+			}
+			this.setMode('NORMAL');
+			return;
+		} else if (event.key === 'Backspace') {
+			this.commandBuffer = this.commandBuffer.slice(0, -1);
+			if (this.commandBuffer.length === 0) {
+				this.setMode('NORMAL');
+			}
+			this.updateStatusBar();
+			return;
+		} else if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+			this.commandBuffer += event.key;
+			this.updateStatusBar();
+		}
 	}
 
 	private handleNormalMode(event: KeyboardEvent) {
@@ -131,6 +164,11 @@ export class VimEngine {
 		let clearState = true;
 
 		switch (key) {
+			case ':':
+				this.setMode('COMMAND');
+				this.commandBuffer = ':';
+				clearState = false;
+				break;
 			case 'i': this.setMode('INSERT'); break;
 			case 'I':
 				let lineStr = this.lines[this.cursorRow] || '';
@@ -366,8 +404,12 @@ export class VimEngine {
 
 	private updateStatusBar() {
 		let statusText = `-- ${this.mode} --`;
-		if (this.commandCount > 0) statusText += `  ${this.commandCount}`;
-		if (this.pendingOperator) statusText += `${this.pendingOperator}`;
+		if (this.mode === 'COMMAND') {
+			statusText = this.commandBuffer;
+		} else {
+			if (this.commandCount > 0) statusText += `  ${this.commandCount}`;
+			if (this.pendingOperator) statusText += `${this.pendingOperator}`;
+		}
 		
 		const rightText = `${this.cursorRow + 1},${this.cursorCol + 1}`;
 		

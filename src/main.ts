@@ -1,5 +1,12 @@
 import StartGame from './game/main';
 
-document.addEventListener('DOMContentLoaded', () => {
+declare global {
+    interface Window {
+        startGame: () => void;
+        googlePlayerName: string;
+    }
+}
+
+window.startGame = () => {
     StartGame('game-container');
-});
+};
