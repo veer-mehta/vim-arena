@@ -3,31 +3,56 @@ import { GameState } from '../GameState';
 
 export interface ClipboardEntry {
     towerType: TowerType;
-    position: { row: number, col: number };
+    position: {row: number, col: number};
     pattern: string[];
     baseKillsRequired: number;
+    currentKills: number;
 }
 
 export class ClipboardSystem {
     private clipboard: ClipboardEntry[] = [];
-
+    
     constructor(private gameState: GameState) {
         const sniper = TOWER_TYPES['sniper'];
         if (sniper) {
             this.clipboard.push({
                 towerType: sniper,
-                position: { row: 0, col: 0 },
+                position: {row: 0, col: 0},
                 pattern: [...sniper.pattern],
-                baseKillsRequired: 25
+                baseKillsRequired: 25,
+                currentKills: 0 // Starts empty
             });
         }
         const rapid = TOWER_TYPES['rapid'];
         if (rapid) {
             this.clipboard.push({
                 towerType: rapid,
-                position: { row: 0, col: 0 },
+                position: {row: 0, col: 0},
                 pattern: [...rapid.pattern],
-                baseKillsRequired: 40
+                baseKillsRequired: 40,
+                currentKills: 0 // Starts empty
+            });
+        }
+        
+        const wall = TOWER_TYPES['wall'];
+        if (wall) {
+            this.clipboard.push({
+                towerType: wall,
+                position: {row: 0, col: 0},
+                pattern: [...wall.pattern],
+                baseKillsRequired: 15,
+                currentKills: 0
+            });
+        }
+        
+        const pulse = TOWER_TYPES['pulse'];
+        if (pulse) {
+            this.clipboard.push({
+                towerType: pulse,
+                position: {row: 0, col: 0},
+                pattern: [...pulse.pattern],
+                baseKillsRequired: 30,
+                currentKills: 0
             });
         }
     }
@@ -39,13 +64,16 @@ export class ClipboardSystem {
     }
 
     public yankPattern(pattern: string[]): boolean {
-        const knownTower = Object.values(TOWER_TYPES).find(t =>
+        // Is it a known tower?
+        const knownTower = Object.values(TOWER_TYPES).find(t => 
             t.pattern.length === pattern.length && t.pattern.every((line, i) => line === pattern[i])
         );
+
         let towerType: TowerType;
         if (knownTower) {
             towerType = knownTower;
         } else {
+            // It's a custom wall or custom structure
             towerType = {
                 char: 'W',
                 name: 'Custom Structure',
@@ -60,33 +88,50 @@ export class ClipboardSystem {
                 isWall: true
             };
         }
+
+        // Insert at index 2 (which is 3p)
         this.clipboard.splice(2, 0, {
             towerType,
-            position: { row: 0, col: 0 },
+            position: {row: 0, col: 0},
             pattern: pattern,
-            baseKillsRequired: 20
+            baseKillsRequired: 20, // 20 cost to paste
+            currentKills: 0   // Start empty
         });
+
+        // Limit to 9 items
         if (this.clipboard.length > 9) {
             this.clipboard.splice(9);
         }
         return true;
     }
 
-    public canPaste(index: number): boolean {
-        const entry = this.clipboard[index];
-        return entry ? this.gameState.credits >= this.getEntryCost(entry) : false;
+    public canPaste(towerTypeName: string): boolean {
+        const entry = this.clipboard.find(e => e.towerType.name === towerTypeName);
+        return entry ? entry.currentKills >= this.getEntryCost(entry) : false;
     }
 
     public useEntry(index: number): boolean {
         const entry = this.clipboard[index];
-        if (entry) {
-            const cost = this.getEntryCost(entry);
-            return this.gameState.spendCredits(cost);
+        if (entry && entry.currentKills >= this.getEntryCost(entry)) {
+            // Drop ALL paste slots to 0 when anything is used
+            for (const e of this.clipboard) {
+                e.currentKills = 0;
+            }
+            return true;
         }
         return false;
     }
 
     public getClipboard(): ClipboardEntry[] {
         return [...this.clipboard];
+    }
+
+    public onEnemyKilled(): void {
+        // Update progress for all clipboard entries
+        for (const entry of this.clipboard) {
+            if (entry.currentKills < this.getEntryCost(entry)) {
+                entry.currentKills++;
+            }
+        }
     }
 }

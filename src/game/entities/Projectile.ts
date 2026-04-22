@@ -5,6 +5,7 @@ export class Projectile {
     public x: number;
     public y: number;
     public isDead: boolean = false;
+
     private vx: number;
     private vy: number;
     private readonly damage: number;
@@ -24,9 +25,11 @@ export class Projectile {
         this.y = y;
         this.damage = damage;
         this.maxRange = range;
+
         const angle = Math.atan2(targetY - y, targetX - x);
         this.vx = Math.cos(angle) * speed;
         this.vy = Math.sin(angle) * speed;
+
         this.visual = scene.add.rectangle(x, y, 6, 6, 0xffee44);
         this.visual.setDepth(25);
     }
@@ -38,7 +41,9 @@ export class Projectile {
         this.y += this.vy * dt;
         this.traveled += Math.hypot(this.vx, this.vy) * dt;
         this.visual.setPosition(this.x, this.y);
+
         if (this.traveled >= this.maxRange) { this.die(); return null; }
+
         for (const e of enemies) {
             if (e.isDead || e.hasExited) continue;
             if (Math.hypot(e.x - this.x, e.y - this.y) < 12) {
