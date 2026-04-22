@@ -2,7 +2,7 @@
 
 Vim Tower Defense is a specialized strategy game where the battlefield is a functional Vim-like text editor. Players must utilize authentic Vim motions, operators, and modes to navigate the environment, construct defenses, and survive endless waves of incoming enemies.
 
-![Vim Tower Defense Gameplay](./public/assets/screenshot.png)
+![game demo](./demo.png)
 
 ## Core Concept
 
