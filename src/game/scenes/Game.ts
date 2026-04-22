@@ -160,19 +160,12 @@ export class Game extends Scene {
 		// --- Game state events ---
 		this.gameState.onGameOver = () => this.showGameOver();
 
-		this.engine.onQuit = () => {
-			if ((window as any).__vimArenaGameOver) {
-				(window as any).__vimArenaGameOver();
-			} else {
-				window.location.reload();
-			}
-		};
-
+		this.engine.onQuit = () => this.quitToDashboard();
 		this.engine.onLeaderboard = () => {
 			if ((window as any).__vimArenaLeaderboard) {
 				(window as any).__vimArenaLeaderboard();
 			} else {
-				window.location.reload();
+				window.location.pathname = '/leaderboard';
 			}
 		};
 
@@ -424,8 +417,7 @@ export class Game extends Scene {
 		if ((window as any).__vimArenaQuit) {
 			(window as any).__vimArenaQuit();
 		} else {
-			window.location.hash = '/dashboard';
-			window.location.reload();
+			window.location.pathname = '/dashboard';
 		}
 	}
 

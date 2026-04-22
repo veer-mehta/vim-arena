@@ -59,89 +59,6 @@ html, body, #root {
     letter-spacing: 4px;
 }
 
-.logo-sub {
-    font-family: monospace;
-    font-size: 13px;
-    color: #555;
-    margin-bottom: 48px;
-    letter-spacing: 2px;
-}
-
-/* ─── Welcome text ─── */
-.welcome {
-    font-family: monospace;
-    font-size: 16px;
-    color: #888;
-    margin-bottom: 40px;
-}
-
-.welcome span {
-    color: #00ffcc;
-    font-weight: bold;
-}
-
-/* ─── Buttons ─── */
-.btn {
-    display: block;
-    width: 280px;
-    padding: 16px 0;
-    margin: 10px 0;
-    font-family: 'Press Start 2P', monospace;
-    font-size: 13px;
-    text-align: center;
-    text-decoration: none;
-    border: 1px solid #3b4252;
-    border-radius: 4px;
-    background: rgba(255,255,255,0.03);
-    color: #d8dee9;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    letter-spacing: 1px;
-}
-
-.btn:hover {
-    background: rgba(136,192,208,0.08);
-    border-color: #88c0d0;
-    color: #88c0d0;
-    box-shadow: 0 0 20px rgba(136,192,208,0.1);
-}
-
-.btn-primary {
-    border-color: #88c0d0;
-    color: #88c0d0;
-}
-
-.btn-primary:hover {
-    background: rgba(136,192,208,0.15);
-    box-shadow: 0 0 30px rgba(136,192,208,0.2);
-}
-
-/* ─── Login Page ─── */
-.login-card {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 16px;
-    padding: 48px;
-    border: 1px solid #222;
-    border-radius: 8px;
-    background: rgba(255,255,255,0.02);
-}
-
-.login-hint {
-    font-size: 12px;
-    color: #555;
-    margin-top: 8px;
-}
-
-/* ─── Leaderboard Table ─── */
-.lb-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    width: 100%;
-    max-width: 520px;
-}
 
 .lb-title {
     font-family: 'Press Start 2P', monospace;
@@ -259,24 +176,6 @@ html, body, #root {
     display: block;
 }
 
-/* ─── Back link ─── */
-.back-link {
-    position: absolute;
-    top: 24px;
-    left: 24px;
-    font-family: monospace;
-    font-size: 14px;
-    color: #555;
-    text-decoration: none;
-    transition: color 0.2s;
-    cursor: pointer;
-    background: none;
-    border: none;
-}
-
-.back-link:hover {
-    color: #00ffcc;
-}
 /* ─── Vim Interface Elements ─── */
 .vim-editor {
     width: 100vw;
