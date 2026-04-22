@@ -20,6 +20,40 @@ export class CombatSystem {
 
     update(delta: number, enemies: Enemy[]): void {
         const towers = this.towerSystem.activeTowers;
+        const vim = (this.towerSystem as any).vim as any; // Access VimEngine
+
+        // 1. Character-based collisions (Every typed char is a tiny wall)
+        if (vim && vim.lines) {
+            for (const e of enemies) {
+                if (e.isDead || e.hasExited) continue;
+                
+                // Convert world coords to grid coords
+                const charCol = Math.floor((e.x - (this.towerSystem as any).gutterWidth) / (this.towerSystem as any).fontWidth);
+                const charRow = Math.floor(e.y / (this.towerSystem as any).fontHeight);
+                
+                if (charRow >= 0 && charRow < vim.lines.length) {
+                    const line = vim.lines[charRow];
+                    if (charCol >= 0 && charCol < line.length && line[charCol] !== ' ') {
+                        // Found a character! Treat it as a tiny barrier
+                        e.takeDamage(0.5); // Enemies take minor damage from hitting code
+                        
+                        // Delete the character (the enemy 'eats' it)
+                        const newLine = line.substring(0, charCol) + ' ' + line.substring(charCol + 1);
+                        vim.lines[charRow] = newLine;
+                        
+                        // Trigger re-render of that row
+                        if (vim.onRenderRow) vim.onRenderRow(charRow);
+                        
+                        if (e.isDead) {
+                            this.gameState.addKill();
+                            this.towerSystem.clipboard.onEnemyKilled();
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Towers fire at nearest in-range enemy...
 
         // Towers fire at nearest in-range enemy with predictive targeting
         for (const tower of towers) {

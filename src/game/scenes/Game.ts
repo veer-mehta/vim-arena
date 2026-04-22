@@ -371,28 +371,52 @@ export class Game extends Scene {
 
 	// ---- Game over ----
 	private async showGameOver(): Promise<void> {
-		this.gameOverScore.setText(`Final Kills: ${this.gameState.kills}`);
+		this.gameOverScore.setText(`SCORE DUMP: ${this.gameState.kills} KILLS`);
+		this.gameOverOverlay.setFillStyle(0x2e3440, 0.95); // Nord Deep Background
 		this.gameOverOverlay.setVisible(true);
+		
+		this.gameOverTitle.setText('!!! VIM ARENA KERNEL PANIC !!!');
+		this.gameOverTitle.setColor('#bf616a'); // Nord Red
 		this.gameOverTitle.setVisible(true);
+		
 		this.gameOverScore.setVisible(true);
 		this.gameOverHint.setVisible(true);
 
+		const cam = this.cameras.main;
+		const centerX = cam.width / 2;
+		
+		// Add some "error dump" text lines
+		const errorLines = [
+			`[${Date.now()}] ERROR: All defensive buffers cleared.`,
+			`[${Date.now() + 12}] STACK TRACE: main.ts -> TowerSystem.ts -> NULL_POINTER`,
+			`[${Date.now() + 45}] VIM_SIGNAL: Caught deadly signal SEGV`,
+			`[${Date.now() + 89}] MEM_DUMP: ${'0x' + Math.random().toString(16).slice(2, 10).toUpperCase()}`
+		];
+
+		errorLines.forEach((line, i) => {
+			this.add.text(centerX, cam.height / 2 - 150 + (i * 15), line, {
+				fontFamily: 'monospace', fontSize: '10px', color: '#4c566a'
+			}).setOrigin(0.5).setDepth(301).setScrollFactor(0);
+		});
+
 		try {
-			// Fetch leaderboard just to show it
 			const response = await fetch(`${import.meta.env.VITE_API_URL}/scores`);
 			const topScores = await response.json();
 
-			let leaderboardText = "GLOBAL TOP SCORES\n\n";
+			let leaderboardText = "--- TOP SCORES (SYSTEM PROCESSES) ---\n\n";
+			leaderboardText += "RANK   PID    USER    SCORE\n";
+			leaderboardText += "----------------------------\n";
 			topScores.forEach((entry: any, index: number) => {
-				leaderboardText += `${(index + 1).toString().padStart(2, ' ')}. ${entry.playerName.padEnd(5, ' ')} ${entry.score.toString().padStart(5, ' ')}\n`;
+				const pid = Math.floor(Math.random() * 9000) + 1000;
+				leaderboardText += `${(index + 1).toString().padStart(2, ' ')}   ${pid}   ${entry.playerName.padEnd(5, ' ')}   ${entry.score.toString().padStart(5, ' ')}\n`;
 			});
 
-			const cam = this.cameras.main;
-			const lbText = this.add.text(cam.width / 2, cam.height / 2 + 30, leaderboardText, {
-				fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: '#88c0d0', align: 'center'
+			const lbText = this.add.text(centerX, cam.height / 2 + 50, leaderboardText, {
+				fontFamily: 'monospace', fontSize: '12px', color: '#88c0d0', align: 'center', lineSpacing: 5
 			}).setOrigin(0.5, 0).setDepth(302).setScrollFactor(0);
 
 			this.gameOverHint.y = lbText.y + lbText.height + 40;
+			this.gameOverHint.setText('Type :w to submit dump, :q to abort');
 		} catch (error) {
 			console.error('Failed to fetch leaderboard:', error);
 		}

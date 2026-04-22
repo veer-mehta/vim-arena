@@ -35,6 +35,11 @@ export class Tower {
 		this.hpBarFill = scene.add.rectangle(worldX - charW / 2, worldY + charH / 2 + 1, charW, 3, type.color);
 		this.hpBarFill.setOrigin(0, 0);
 		this.hpBarFill.setDepth(31);
+
+		if (type.isWall) {
+			this.hpBarBg.setVisible(false);
+			this.hpBarFill.setVisible(false);
+		}
 	}
 
 	takeDamage(amount: number): boolean {

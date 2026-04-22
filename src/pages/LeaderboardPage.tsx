@@ -106,7 +106,7 @@ export default function LeaderboardPage() {
                 <div className="vim-statusline">
                     <div>
                         <span className="vim-statusline-primary" style={{ background: '#ffcc00' }}>RANKINGS</span>
-                        <span>Leaderboard.vim</span>
+                        <span>Leaderboard.vim [RO]</span>
                     </div>
                     <div>
                         <span>utf-8 | Top {scores.length}</span>

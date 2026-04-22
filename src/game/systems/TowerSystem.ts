@@ -73,6 +73,8 @@ export class TowerSystem {
             this.towerPatterns.set(`${startCol},${initial.row}`, {type: initial.type, startCol, startRow: initial.row});
         }
         this.scanAll();
+        const shootingTowers = this.activeTowers.filter(t => !t.type.isWall && t.type.damage > 0);
+        this.gameState.setTowerCount(shootingTowers.length);
     }
 
     private handlePaste(row: number, col: number, index: number): void {
@@ -130,63 +132,85 @@ export class TowerSystem {
     }
 
     scanRow(row: number): void {
-        const line = this.vim.lines[row] ?? '';
+        const lines = this.vim.lines;
         const beforeCount = this.activeTowers.length;
         
-        // Find all tower patterns that include this row
-        const patternsInRow = Array.from(this.towerPatterns.entries())
-            .filter(([_key, pattern]) => {
-                const patternInfo = TOWER_TYPES[pattern.type];
-                return row >= pattern.startRow && row < pattern.startRow + patternInfo.pattern.length;
-            });
-        
-        if (patternsInRow.length === 0) {
-            // Remove any towers on rows without patterns
-            for (const [key, tower] of this.towers) {
-                if (tower.row === row) {
+        // 1. Clean up existing towers on this row that no longer match their patterns
+        for (const [key, tower] of this.towers.entries()) {
+            const patternInfo = this.towerPatterns.get(key);
+            if (patternInfo && row >= patternInfo.startRow && row < patternInfo.startRow + TOWER_TYPES[patternInfo.type].pattern.length) {
+                const towerType = TOWER_TYPES[patternInfo.type];
+                const relRow = row - patternInfo.startRow;
+                const patternLine = towerType.pattern[relRow];
+                const bufferLine = lines[row] || '';
+                
+                let mismatched = false;
+                for (let c = 0; c < patternLine.length; c++) {
+                    if (bufferLine[patternInfo.startCol + c] !== patternLine[c]) {
+                        mismatched = true;
+                        break;
+                    }
+                }
+                
+                if (mismatched) {
                     tower.destroy();
                     this.towers.delete(key);
+                    this.towerPatterns.delete(key);
                 }
             }
-            return;
         }
-        
-        // Process each pattern that includes this row
-        for (const [key, patternInfo] of patternsInRow) {
-            const towerType = TOWER_TYPES[patternInfo.type];
-            if (!towerType) continue;
-            
-            const relativeRow = row - patternInfo.startRow;
-            const patternLine = towerType.pattern[relativeRow];
-            
-            let mismatched = false;
-            for (let col = 0; col < patternLine.length; col++) {
-                const worldCol = patternInfo.startCol + col;
-                if (line[worldCol] !== patternLine[col]) {
-                    mismatched = true;
-                    break;
-                }
-            }
 
-            if (mismatched) {
-                // Remove the tower and pattern if it got destroyed
-                if (this.towers.has(key)) {
-                    this.towers.get(key)!.destroy();
-                    this.towers.delete(key);
-                }
-                this.towerPatterns.delete(key);
-            } else if (!this.towers.has(key)) {
-                // Match is valid, instantiate exactly one Tower object per pattern centered
-                const centerCol = patternInfo.startCol + Math.floor(patternLine.length / 2);
-                const centerRow = patternInfo.startRow + Math.floor(towerType.pattern.length / 2);
-                const wx = this.gutterWidth + centerCol * this.fontWidth + this.fontWidth / 2;
-                const wy = centerRow * this.fontHeight + this.fontHeight / 2;
+        // 2. Search for NEW patterns starting on this row
+        const currentLine = lines[row] || '';
+        for (const [typeId, towerType] of Object.entries(TOWER_TYPES)) {
+            const firstLine = towerType.pattern[0];
+            let startSearch = 0;
+            
+            while (true) {
+                const foundCol = currentLine.indexOf(firstLine, startSearch);
+                if (foundCol === -1) break;
                 
-                this.towers.set(key, new Tower(this.scene, centerCol, centerRow, wx, wy, towerType, this.fontWidth * patternLine.length, this.fontHeight * towerType.pattern.length));
+                // Potential match found, check other lines
+                let fullMatch = true;
+                for (let r = 1; r < towerType.pattern.length; r++) {
+                    const nextLine = lines[row + r] || '';
+                    const expectedPattern = towerType.pattern[r];
+                    
+                    for (let c = 0; c < expectedPattern.length; c++) {
+                        if (nextLine[foundCol + c] !== expectedPattern[c]) {
+                            fullMatch = false;
+                            break;
+                        }
+                    }
+                    if (!fullMatch) break;
+                }
+                
+                if (fullMatch) {
+                    const key = `${foundCol},${row}`;
+                    // Only create if it doesn't exist
+                    if (!this.towers.has(key)) {
+                        const centerCol = foundCol + Math.floor(firstLine.length / 2);
+                        const centerRow = row + Math.floor(towerType.pattern.length / 2);
+                        const wx = this.gutterWidth + centerCol * this.fontWidth + this.fontWidth / 2;
+                        const wy = centerRow * this.fontHeight + this.fontHeight / 2;
+                        
+                        this.towerPatterns.set(key, {type: typeId, startCol: foundCol, startRow: row});
+                        this.towers.set(key, new Tower(
+                            this.scene, 
+                            centerCol, centerRow, 
+                            wx, wy, 
+                            towerType, 
+                            this.fontWidth * firstLine.length, 
+                            this.fontHeight * towerType.pattern.length
+                        ));
+                    }
+                }
+                
+                startSearch = foundCol + 1;
             }
         }
         
-        const afterCount = this.activeTowers.length;
+        const afterCount = this.activeTowers.filter(t => !t.type.isWall && t.type.damage > 0).length;
         if (beforeCount !== afterCount) {
             this.gameState.setTowerCount(afterCount);
         }
@@ -227,7 +251,8 @@ export class TowerSystem {
                 this.towerPatterns.delete(actualKey);
             }
             tower.destroy();
-            this.gameState.setTowerCount(this.activeTowers.length);
+            const shootingTowers = this.activeTowers.filter(t => !t.type.isWall && t.type.damage > 0);
+            this.gameState.setTowerCount(shootingTowers.length);
             this.onTowerDestroyed?.(tower.col, tower.row);
         }
     }

@@ -13,14 +13,17 @@ export class ClipboardSystem {
     private clipboard: ClipboardEntry[] = [];
     
     constructor(private gameState: GameState) {
+        // Give starting kills so the user can paste immediately
+        for (let i = 0; i < 100; i++) this.onEnemyKilled();
+
         const sniper = TOWER_TYPES['sniper'];
         if (sniper) {
             this.clipboard.push({
                 towerType: sniper,
                 position: {row: 0, col: 0},
                 pattern: [...sniper.pattern],
-                baseKillsRequired: 25,
-                currentKills: 0 // Starts empty
+                baseKillsRequired: 10,
+                currentKills: 100 // Pre-filled
             });
         }
         const rapid = TOWER_TYPES['rapid'];
@@ -29,8 +32,8 @@ export class ClipboardSystem {
                 towerType: rapid,
                 position: {row: 0, col: 0},
                 pattern: [...rapid.pattern],
-                baseKillsRequired: 40,
-                currentKills: 0 // Starts empty
+                baseKillsRequired: 15,
+                currentKills: 100 // Pre-filled
             });
         }
         
@@ -40,8 +43,8 @@ export class ClipboardSystem {
                 towerType: wall,
                 position: {row: 0, col: 0},
                 pattern: [...wall.pattern],
-                baseKillsRequired: 15,
-                currentKills: 0
+                baseKillsRequired: 0, // Walls are free
+                currentKills: 100
             });
         }
         
@@ -51,15 +54,16 @@ export class ClipboardSystem {
                 towerType: pulse,
                 position: {row: 0, col: 0},
                 pattern: [...pulse.pattern],
-                baseKillsRequired: 30,
-                currentKills: 0
+                baseKillsRequired: 12,
+                currentKills: 100
             });
         }
     }
 
     public getEntryCost(entry: ClipboardEntry): number {
+        if (entry.towerType.name === 'Custom Structure') return 0; // Free to paste text
         if (entry.baseKillsRequired === 0) return 0;
-        const timePenalty = Math.floor(this.gameState.elapsedSeconds / 60) * 10;
+        const timePenalty = Math.floor(this.gameState.elapsedSeconds / 120) * 5; // Slower penalty growth
         return entry.baseKillsRequired + timePenalty;
     }
 
@@ -70,8 +74,11 @@ export class ClipboardSystem {
         );
 
         let towerType: TowerType;
+        let cost = 5;
+
         if (knownTower) {
             towerType = knownTower;
+            cost = knownTower.name.toLowerCase().includes('wall') ? 0 : 8;
         } else {
             // It's a custom wall or custom structure
             towerType = {
@@ -87,6 +94,7 @@ export class ClipboardSystem {
                 pattern: pattern,
                 isWall: true
             };
+            cost = 0; // Custom text is free
         }
 
         // Insert at index 2 (which is 3p)
@@ -94,8 +102,8 @@ export class ClipboardSystem {
             towerType,
             position: {row: 0, col: 0},
             pattern: pattern,
-            baseKillsRequired: 20, // 20 cost to paste
-            currentKills: 0   // Start empty
+            baseKillsRequired: cost,
+            currentKills: 100 // Start with enough kills
         });
 
         // Limit to 9 items
