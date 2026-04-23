@@ -1,76 +1,159 @@
-# VimArena - A Tower Defense Game
+# VimArena
 
-Vim Tower Defense is a specialized strategy game where the battlefield is a functional Vim-like text editor. Players must utilize authentic Vim motions, operators, and modes to navigate the environment, construct defenses, and survive endless waves of incoming enemies.
+VimArena is a high-octane tower defense game where your battlefield is a functional Vim-like text editor. Navigate, build, and defend using authentic Vim motions, operators, and modes.
 
-![game demo](./demo.png)
+**[Play VimArena Online!](https://vim-arena-five.vercel.app/)**
 
-## Core Concept
+![Game Demo](./demo.png)
 
-In Vim Tower Defense, the text buffer is not just a display—it is the physical arena. Every character in the buffer can represent a wall, a component of a tower, or open space. The game bridges the gap between text editing mastery and strategic tower defense gameplay.
+## The Core Concept
 
-The player's efficiency is directly tied to their fluency with Vim commands. Faster navigation leads to faster response times, and a deeper understanding of operators allows for more complex battlefield manipulation.
+In **VimArena**, the text buffer is the physical arena. Every character represents a wall, a component of a tower, or open space. Your efficiency as a defender is directly tied to your fluency with Vim commands.
 
-## Gameplay Mechanics
+- **Speed is Survival**: Faster navigation means faster response times.
+- **Precision is Power**: Mastery of operators allows for complex battlefield manipulation.
+- **The Buffer is Alive**: The map is dynamic and evolves as you type and delete.
 
-### Navigation and Interaction
-The player controls a standard Vim cursor. Movement is handled through traditional keys like `h`, `j`, `k`, `l`, as well as more advanced word-jumps (`w`, `b`, `e`) and line-anchors (`0`, `$`). The engine supports numeric counts (e.g., `10j`), allowing for rapid traversal of the grid.
+---
 
-### The Construction System
-Construction is divided into two primary categories:
+## New Features & Updates
 
-1.  **Improvised Walls**: By entering Insert Mode (`i`, `a`, `I`, `A`), the player can type directly into the buffer. Every character typed becomes a "Wall" with 1 HP. These structures are ideal for quick, low-cost blocking and diverting enemy paths.
-2.  **Specialized Towers**: Using the Yank (`y`) and Paste (`p`) mechanism, players can deploy pre-configured ASCII structures. These towers possess various stats such as range, rate of fire, and damage.
+- **Manual Wall Construction**: Enter Insert Mode (`i`, `a`) and type directly into the buffer to place low-cost, 1-HP walls. Perfect for quick path redirection.
+- **Advanced Yank & Paste**: Deploy specialized ASCII towers using `y` to copy and `p` to paste. Each tower has unique range, damage, and fire rates.
+- **Strategic Game Over**: The game continues as long as you have combat-capable towers. Survival depends on protecting your infrastructure.
+- **Global Leaderboards**: Compete with other Vim masters and see where you rank in terms of survival time and total kills.
+- **Hybrid Scaling**: Difficulty scales based on both time and kill count, ensuring a consistently challenging experience.
 
-### Economy and Progression
-The game features a global Credit system.
-- **Earning**: Every enemy defeated grants exactly 1 Credit.
-- **Spending**: Pasting a specialized tower deductions a set amount of Credits from the global pool. Unlike early versions of the game, pasting one item does not reset the progress of others; it simply subtracts from the shared balance.
+---
 
-### Hybrid Difficulty Scaling
-To ensure a balanced experience, the game employs a non-linear difficulty curve:
-- **Early Game**: A square-root time component ensures the game starts quickly, avoiding a slow or boring introduction.
-- **Mid-to-Late Game**: Difficulty scaling transitions to a hybrid model based on both total survival time and total kill count. This rewards high-efficiency play while ensuring the challenge keeps pace with the player's expansion.
+## Project Structure
+
+```text
+src/
+├── context/         # React context for state sharing between React and Phaser
+├── game/            # Core game logic
+│   ├── entities/    # Game objects (Enemies, Towers, Projectiles)
+│   ├── scenes/      # Phaser scene management
+│   ├── systems/     # ECS-like logic (Combat, AI, Economy, Walls)
+│   ├── vim/         # Bespoke Vim state machine and command parser
+│   ├── GameState.ts # Centralized game metrics and difficulty logic
+│   └── main.ts      # Phaser initialization and config
+├── pages/           # React UI components (Game, Leaderboard, Dashboard)
+├── App.tsx          # Main React entry component
+└── main.tsx         # Vite/React entry point
+```
+
+---
+
+## Architecture & Integration
+
+VimArena leverages a hybrid architecture, combining the reactive power of **React** for UI with the high-performance rendering of **Phaser 3**, all driven by a custom **Vim Engine**.
+
+```mermaid
+graph TD
+    subgraph UI [React UI Layer]
+        RP[GamePage]
+        RL[LeaderboardPage]
+        RD[DashboardPage]
+    end
+
+    subgraph Core [Game Core]
+        PE[Phaser Engine]
+        VE[Vim Engine]
+        GS[GameState]
+    end
+
+    subgraph Logic [Systems]
+        CS[CombatSystem]
+        TS[TowerSystem]
+        ES[EnemySystem]
+        WS[WallSystem]
+        CB[ClipboardSystem]
+    end
+
+    RP <--> PE
+    PE <--> VE
+    PE <--> GS
+    PE --- Logic
+    VE --- WS
+    VE --- CB
+```
+
+---
 
 ## Control Reference
 
-### Normal Mode Navigation
+### Normal Mode (Navigation)
 | Command | Action |
 |:---|:---|
-| **h / j / k / l** | Move cursor one cell Left, Down, Up, or Right. |
-| **w / b / e** | Jump to the start of the next word, previous word, or end of the current word. |
-| **0 / $** | Jump directly to the beginning or end of the current line. |
-| **[count] + motion** | Repeat a motion N times (e.g., `5j` to move 5 lines down). |
+| `h` `j` `k` `l` | Move cursor Left, Down, Up, or Right. |
+| `w` `b` `e` | Jump to start/end of words. |
+| `0` `$` | Jump to beginning or end of the current line. |
+| `[count] + motion` | Repeat a motion N times (e.g., `5j` to move 5 lines down). |
 
-### Operators and Actions
+### Operators & Actions
 | Command | Action |
 |:---|:---|
-| **v** | Enter Visual Mode to select patterns. |
-| **y / yy** | Yank (copy) the current selection or the whole line into the clipboard. |
-| **p / [count]p** | Paste from the clipboard slot N (e.g., `1p` for tower slot 1, `2p` for 2). |
-| **d / dd** | Delete the current selection or line. |
-| **c / cc** | Change the current selection or line (deletes and enters Insert Mode). |
-| **i / a** | Enter Insert Mode before or after the cursor. |
-| **I / A** | Enter Insert Mode at the start or end of the line. |
+| `v` | Enter **Visual Mode** to select patterns. |
+| `y` / `yy` | **Yank** (copy) the current selection or line. |
+| `p` / `[count]p` | **Paste** from clipboard slot N (e.g., `1p` for tower slot 1). |
+| `d` / `dd` | **Delete** the current selection or line. |
+| `c` / `cc` | **Change** (delete and enter Insert Mode). |
+| `i` / `a` | Enter **Insert Mode** before/after the cursor. |
 
 ### Insert Mode
 | Command | Action |
 |:---|:---|
-| **Esc** | Return to Normal Mode. |
-| **Any Character** | Places a 1-HP wall at the current cursor location in the buffer. |
-| **Backspace** | Deletes the character/structure before the cursor. |
+| `Esc` | Return to Normal Mode. |
+| `Any Char` | Places a **1-HP wall** at the cursor location. |
+| `Backspace` | Deletes the character/structure before the cursor. |
 
-## Technical Architecture
+---
 
-The game is built using the following technologies:
+## Tech Stack
 
-- **Phaser 3**: Utilized for high-performance rendering of the text grid, projectiles, and particle effects.
-- **Custom Vim Engine**: A bespoke TypeScript implementation of the Vim state machine, handling mode switching, command parsing, and buffer manipulation.
-- **System-Based Design**: The logic is decoupled into specialized systems (e.g., `EnemySystem`, `TowerSystem`, `CombatSystem`) to maintain a clean and extensible codebase.
+- **Phaser 3**: High-performance game engine for rendering the text grid and effects.
+- **React 19**: Modern UI framework for overlays, menus, and leaderboards.
+- **Vite**: Ultra-fast build tool and dev server.
+- **TypeScript**: Type-safe development for complex game systems.
 
-## Development and Deployment
+---
 
-| Stage | Command | Description |
-|:---|:---|:---|
-| **Installation** | `npm install` | Installs all necessary project dependencies. |
-| **Development** | `npm run dev` | Launches the local server (typically at `http://localhost:8080`). |
-| **Build** | `npm run build` | Generates a minified, production-ready bundle in the `dist/` directory. |
+## Getting Started
+
+### 1. Environment Configuration
+
+You need to set up environment variables for both the client and the server.
+
+**Client (Root Directory):**
+Create a `.env` file in the root directory:
+```env
+VITE_GOOGLE_CLIENT_ID=your_google_client_id
+VITE_API_URL=http://localhost:3000
+```
+
+**Server (`/server` Directory):**
+Create a `.env` file in the `server` directory:
+```env
+MONGODB_URI=your_mongodb_connection_string
+PORT=3000
+```
+
+### 2. Server Setup
+
+The backend handles the leaderboard and authentication state.
+```bash
+cd server
+npm install
+npm start
+```
+
+### 3. Client Setup
+
+Run the Phaser game and React UI.
+```bash
+# From the root directory
+npm install
+npm run dev
+```
+
