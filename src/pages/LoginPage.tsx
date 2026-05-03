@@ -1,19 +1,47 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { VimLayout } from '../components/VimLayout';
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 export default function LoginPage() {
-    const { user, login, isLoading } = useAuth();
+    const { user, login, loginAsGuest, isLoading } = useAuth();
     const navigate = useNavigate();
     const btnRef = useRef<HTMLDivElement>(null);
+    const [commandBuffer, setCommandBuffer] = useState<string>('');
+    const [navHint, setNavHint] = useState('');
 
     useEffect(() => {
         if (!isLoading && user) {
             navigate('/dashboard', { replace: true });
         }
     }, [user, isLoading, navigate]);
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') { setCommandBuffer(''); setNavHint(''); return; }
+            if (e.key === 'Enter') {
+                const cmd = commandBuffer.trim().toLowerCase();
+                if (cmd === ':lb' || cmd === ':leaderboard') navigate('/leaderboard');
+                setCommandBuffer(''); setNavHint('');
+                return;
+            }
+            if (e.key === 'Backspace') { setCommandBuffer(p => p.slice(0, -1)); setNavHint(''); return; }
+            if (e.key.length === 1) {
+                if (e.key === ':' || commandBuffer.startsWith(':')) {
+                    const next = commandBuffer + e.key;
+                    setCommandBuffer(next);
+                    if (':leaderboard'.startsWith(next) || ':lb'.startsWith(next))
+                        setNavHint(':lb → Leaderboard');
+                    else
+                        setNavHint('');
+                }
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [commandBuffer, navigate]);
 
     useEffect(() => {
         if (isLoading || user) return;
@@ -54,39 +82,28 @@ export default function LoginPage() {
     if (isLoading) return null;
 
     return (
-        <div className="page">
-            <div className="vim-editor">
-                <div className="vim-main">
-                    <div className="vim-gutter">
-                        {Array.from({ length: 40 }).map((_, i) => (
-                            <div key={i} style={{ height: '24px' }}>{i + 1}</div>
-                        ))}
-                    </div>
-                    <div className="vim-body">
-                        <div className="logo" style={{ fontSize: '48px', marginTop: '40px' }}>VIM ARENA</div>
-                        <div className="vim-comment" style={{ marginBottom: '64px' }}>
-                            Sign In To Play
-                        </div>
-                        
-                        <div ref={btnRef} style={{ margin: '40px 0' }}></div>
-                    </div>
-                </div>
-
-                <div className="vim-statusline">
-                    <div>
-                        <span className="vim-statusline-primary" style={{ background: '#569cd6' }}>INSERT</span>
-                        <span>Login.vim</span>
-                    </div>
-                    <div>
-                        <span>[Auth Required]</span>
-                    </div>
-                </div>
-
-                <div className="vim-commandline">
-                    <span>:</span>
-                    <div className="vim-cursor"></div>
-                </div>
+        <VimLayout
+            gutterLines={40}
+            vimMode="INSERT"
+            filename="login.html [RO]"
+            statusShortcuts="[Auth Required]"
+            commandBuffer={commandBuffer}
+            cmdHint={navHint}
+        >
+            <div className="logo" style={{ fontSize: '48px', marginTop: '40px' }}>VIM ARENA</div>
+            <div className="vim-comment" style={{ marginBottom: '32px' }}>
+                Sign In To Play, or play as Guest
             </div>
-        </div>
+            
+            <div ref={btnRef} style={{ margin: '20px 0' }}></div>
+
+            <button 
+                className="guest-button"
+                onClick={() => loginAsGuest()}
+                style={{ background: 'transparent', border: '1px solid #569cd6', color: '#569cd6', padding: '10px 20px', cursor: 'pointer', fontFamily: 'monospace' }}
+            >
+                [Play as Guest]
+            </button>
+        </VimLayout>
     );
 }

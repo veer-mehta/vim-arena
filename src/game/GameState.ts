@@ -3,7 +3,7 @@ export class GameState {
 	public elapsedSeconds: number = 0;
 	public isGameOver: boolean = false;
 	public towerCount: number = 0;
-	public energy: number = 100;
+	public energy: number = 50;
 	public readonly ULTIMATE_COST: number = 20;
 
 	public onKillsChange?: (kills: number) => void;
@@ -47,13 +47,17 @@ export class GameState {
 		this.onEnergyChange?.(this.energy);
 	}
 
-	tryUltimate(): boolean {
-		if (this.energy >= this.ULTIMATE_COST) {
-			this.energy -= this.ULTIMATE_COST;
+	tryConsumeEnergy(amount: number): boolean {
+		if (this.energy >= amount) {
+			this.energy -= amount;
 			this.onEnergyChange?.(this.energy);
 			return true;
 		}
 		return false;
+	}
+
+	tryUltimate(): boolean {
+		return this.tryConsumeEnergy(this.ULTIMATE_COST);
 	}
 
 	getTimeString(): string {

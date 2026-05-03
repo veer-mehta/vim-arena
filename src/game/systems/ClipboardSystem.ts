@@ -5,25 +5,20 @@ export interface ClipboardEntry {
     towerType: TowerType;
     position: {row: number, col: number};
     pattern: string[];
-    baseKillsRequired: number;
-    currentKills: number;
+    baseEnergyCost: number;
 }
 
 export class ClipboardSystem {
     private clipboard: ClipboardEntry[] = [];
     
     constructor(private gameState: GameState) {
-        // Give starting kills so the user can paste immediately
-        for (let i = 0; i < 100; i++) this.onEnemyKilled();
-
         const sniper = TOWER_TYPES['sniper'];
         if (sniper) {
             this.clipboard.push({
                 towerType: sniper,
                 position: {row: 0, col: 0},
                 pattern: [...sniper.pattern],
-                baseKillsRequired: 10,
-                currentKills: 100 // Pre-filled
+                baseEnergyCost: 10
             });
         }
         const rapid = TOWER_TYPES['rapid'];
@@ -32,8 +27,7 @@ export class ClipboardSystem {
                 towerType: rapid,
                 position: {row: 0, col: 0},
                 pattern: [...rapid.pattern],
-                baseKillsRequired: 15,
-                currentKills: 100 // Pre-filled
+                baseEnergyCost: 15
             });
         }
         
@@ -43,8 +37,7 @@ export class ClipboardSystem {
                 towerType: wall,
                 position: {row: 0, col: 0},
                 pattern: [...wall.pattern],
-                baseKillsRequired: 0, // Walls are free
-                currentKills: 100
+                baseEnergyCost: 0 // Walls are free
             });
         }
         
@@ -54,20 +47,25 @@ export class ClipboardSystem {
                 towerType: pulse,
                 position: {row: 0, col: 0},
                 pattern: [...pulse.pattern],
-                baseKillsRequired: 12,
-                currentKills: 100
+                baseEnergyCost: 12
             });
         }
     }
 
     public getEntryCost(entry: ClipboardEntry): number {
         if (entry.towerType.name === 'Custom Structure') return 0; // Free to paste text
-        if (entry.baseKillsRequired === 0) return 0;
+        if (entry.baseEnergyCost === 0) return 0;
         const timePenalty = Math.floor(this.gameState.elapsedSeconds / 120) * 5; // Slower penalty growth
-        return entry.baseKillsRequired + timePenalty;
+        return entry.baseEnergyCost + timePenalty;
     }
 
     public yankPattern(pattern: string[]): boolean {
+        // Copying now costs energy (e.g. 5 energy)
+        const COPY_COST = 5;
+        if (!this.gameState.tryConsumeEnergy(COPY_COST)) {
+            return false;
+        }
+
         // Is it a known tower?
         const knownTower = Object.values(TOWER_TYPES).find(t => 
             t.pattern.length === pattern.length && t.pattern.every((line, i) => line === pattern[i])
@@ -102,8 +100,7 @@ export class ClipboardSystem {
             towerType,
             position: {row: 0, col: 0},
             pattern: pattern,
-            baseKillsRequired: cost,
-            currentKills: 100 // Start with enough kills
+            baseEnergyCost: cost
         });
 
         // Limit to 9 items
@@ -115,17 +112,16 @@ export class ClipboardSystem {
 
     public canPaste(towerTypeName: string): boolean {
         const entry = this.clipboard.find(e => e.towerType.name === towerTypeName);
-        return entry ? entry.currentKills >= this.getEntryCost(entry) : false;
+        return entry ? this.gameState.energy >= this.getEntryCost(entry) : false;
     }
 
     public useEntry(index: number): boolean {
         const entry = this.clipboard[index];
-        if (entry && entry.currentKills >= this.getEntryCost(entry)) {
-            // Drop ALL paste slots to 0 when anything is used
-            for (const e of this.clipboard) {
-                e.currentKills = 0;
+        if (entry) {
+            const cost = this.getEntryCost(entry);
+            if (this.gameState.tryConsumeEnergy(cost)) {
+                return true;
             }
-            return true;
         }
         return false;
     }
@@ -135,11 +131,6 @@ export class ClipboardSystem {
     }
 
     public onEnemyKilled(): void {
-        // Update progress for all clipboard entries
-        for (const entry of this.clipboard) {
-            if (entry.currentKills < this.getEntryCost(entry)) {
-                entry.currentKills++;
-            }
-        }
+        // Kills directly add energy in GameState, so nothing needed here.
     }
 }

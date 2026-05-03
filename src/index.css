@@ -13,6 +13,28 @@ html, body, #root {
     background: #16181d;
     color: #d8dee9;
     font-family: monospace;
+    scrollbar-color: #3b4252 #16181d;
+    scrollbar-width: thin;
+}
+
+/* ─── Scrollbar ─── */
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+::-webkit-scrollbar-track {
+    background: #16181d;
+    border-left: 1px solid #232530;
+}
+::-webkit-scrollbar-thumb {
+    background: #3b4252;
+    border-radius: 0;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #4c566a;
+}
+::-webkit-scrollbar-corner {
+    background: #16181d;
 }
 
 /* ─── Shared Page Shell ─── */
@@ -216,41 +238,34 @@ html, body, #root {
 .vim-statusline {
     display: flex;
     justify-content: space-between;
-    background: #d4d4d4;
-    color: #000;
-    font-family: monospace;
-    font-size: 12px;
-    padding: 2px 12px;
-    font-weight: bold;
-}
-
-.vim-statusline-primary {
-    background: #88c0d0;
-    padding: 0 8px;
-    margin-right: 8px;
+    background: #1c1e26;
+    color: #d8dee9;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 10px;
+    padding: 12px 24px;
+    align-items: center;
+    box-shadow: 0 -4px 10px rgba(0, 0, 0, 0.2);
+    z-index: 10;
 }
 
 .vim-commandline {
-    background: #16181d;
-    color: #eceff4;
+    background: #161b22;
+    color: #d8dee9;
     font-family: monospace;
     font-size: 14px;
-    padding: 6px 12px;
+    padding: 10px 24px;
     display: flex;
     align-items: center;
     border-top: 1px solid #232530;
+    z-index: 10;
 }
 
-.vim-commandline span {
-    color: #88c0d0;
-    margin-right: 8px;
-}
 
 .vim-cursor {
     display: inline-block;
     width: 8px;
     height: 18px;
-    background: #d8dee9;
+    background: #88c0d0;
     margin-left: 2px;
     animation: blink 1s step-end infinite;
 }

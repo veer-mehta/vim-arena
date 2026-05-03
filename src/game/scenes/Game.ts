@@ -20,8 +20,6 @@ export class Game extends Scene {
 	private firstVisibleRow: number = 0;
 	private firstVisibleCol: number = 0;
 	private lineNumbers: GameObjects.Text[] = [];
-	private instructionBg!: GameObjects.Rectangle;
-	private instructionText!: GameObjects.Text;
 	private clipboardBg!: GameObjects.Rectangle;
 	private clipboardTitle!: GameObjects.Text;
 	private clipboardEntries: GameObjects.Text[] = [];
@@ -29,10 +27,16 @@ export class Game extends Scene {
 	private towerSystem!: TowerSystem;
 	private combatSystem!: CombatSystem;
 	private gameState!: GameState;
+	// --- Game Over Overlay ---
 	private gameOverOverlay!: GameObjects.Rectangle;
-	private gameOverTitle!: GameObjects.Text;
-	private gameOverScore!: GameObjects.Text;
-	private gameOverHint!: GameObjects.Text;
+	private gameOverContainer!: GameObjects.Container;
+	private gameOverCmdLine!: GameObjects.Text;
+	private gameOverCmdCursor!: GameObjects.Rectangle;
+	private gameOverCmdBg!: GameObjects.Rectangle;
+	private gameOverCmdBorder!: GameObjects.Rectangle;
+	private gameOverStatusText!: GameObjects.Text;
+	private cursorBlinkTimer: number = 0;
+	private cursorVisible: boolean = true;
 	private hudLives!: GameObjects.Text;
 	private hudScore!: GameObjects.Text;
 	private hudTime!: GameObjects.Text;
@@ -40,42 +44,12 @@ export class Game extends Scene {
 	private hudVimStatus!: GameObjects.Text;
 	private gameAreaStartX: number = 0;
 
+	// --- Tower event log ---
+	private towerLog: Array<{ ts: number; kind: 'create' | 'destroy' | 'edit'; name: string; col: number; row: number }> = [];
+	private readonly MAX_TOWER_LOG = 40;
+
 	constructor() { super('Game'); }
 
-	private getInstructionText(): string {
-		return [
-			'VIM TOWER DEFENSE',
-			'==================',
-			'',
-			'CONTROLS:',
-			'h j k l - Move cursor',
-			'i - Insert mode',
-			'ESC - Normal mode',
-			'v - Visual mode',
-			'y - Copy in visual',
-			'p - Paste',
-			':wq    Clear screen (Ult)',
-			':db    Back to Dashboard',
-			':lb    View Leaderboard',
-			'',
-			'TOWERS:',
-			'Sniper (slow, long range)',
-			'Rapid (fast, short range)',
-			'Wall (high HP, blocks)',
-			'Pulse (AoE damage)',
-			'',
-			'GAMEPLAY:',
-			'• Enemies target towers',
-			'• Game ends when all',
-			'  towers are destroyed',
-			'• Copy towers after 10',
-			'  kills to paste them',
-			'',
-			'TIP: Select entire tower',
-			'pattern in visual mode',
-			'to copy it!'
-		].join('\n');
-	}
 
 	private gameOverCommand: string = '';
 
@@ -90,26 +64,18 @@ export class Game extends Scene {
 		this.fontWidth = tmp.width / 50;
 		tmp.destroy();
 
-		// Calculate layout
-		const instructionPanelWidth = cam.width * 0.18; // 18% of screen width
-		this.gameAreaStartX = instructionPanelWidth; // Start of game area after instruction panel
-
-		// --- Instruction Panel (fills left area) ---
-		this.instructionBg = this.add.rectangle(0, 0, instructionPanelWidth, cam.height, 0x1c1e26); // Darker Sidebar
-		this.instructionBg.setOrigin(0, 0).setScrollFactor(0).setDepth(41);
-
-		this.instructionText = this.add.text(15, 20, this.getInstructionText(), {
-			fontFamily: 'monospace', fontSize: '14px', color: '#d8dee9', wordWrap: { width: instructionPanelWidth - 30, useAdvancedWrap: true }
-		});
-		this.instructionText.setOrigin(0, 0).setScrollFactor(0).setDepth(42);
+		this.gameAreaStartX = 80;
 
 		// --- Clipboard Panel (fills right area) ---
-		const clipboardPanelWidth = cam.width * 0.15; // 15% of screen width
+		const clipboardPanelWidth = 320; // Fixed width to prevent cut-off
 		const clipboardX = cam.width - clipboardPanelWidth;
 		this.clipboardBg = this.add.rectangle(clipboardX, 0, clipboardPanelWidth, cam.height, 0x1c1e26); // Darker Sidebar
 		this.clipboardBg.setOrigin(0, 0).setScrollFactor(0).setDepth(41);
+        
+		// Add left border to clipboard
+		this.add.rectangle(clipboardX, 0, 1, cam.height, 0x232530).setOrigin(0, 0).setDepth(42).setScrollFactor(0);
 
-		this.clipboardTitle = this.add.text(clipboardX + 15, 20, 'CLIPBOARD', {
+		this.clipboardTitle = this.add.text(clipboardX + 20, 24, 'CLIPBOARD', {
 			fontFamily: '"Press Start 2P", monospace', fontSize: '12px', color: '#eceff4'
 		});
 		this.clipboardTitle.setOrigin(0, 0).setScrollFactor(0).setDepth(42);
@@ -138,13 +104,27 @@ export class Game extends Scene {
 		this.gameState = new GameState();
 		this.enemySystem = new EnemySystem(this, this.gameState, this.gameAreaStartX, this.fontWidth, FONT_HEIGHT);
 		// Calculate game area columns to center towers
-		const gameAreaWidth = cam.width - instructionPanelWidth - clipboardPanelWidth;
+		const gameAreaWidth = cam.width - clipboardPanelWidth;
 		const gameAreaCols = Math.floor(gameAreaWidth / this.fontWidth);
 		const centerCol = Math.floor(gameAreaCols / 2);
 
 		this.towerSystem = new TowerSystem(this, this.engine, this.gameAreaStartX, this.fontWidth, FONT_HEIGHT, this.gameState, centerCol);
 		this.combatSystem = new CombatSystem(this, this.gameState, this.towerSystem);
 		this.enemySystem.setTowerProvider(() => this.towerSystem.activeTowers);
+
+		// --- Tower event log ---
+		this.towerSystem.onTowerCreated = (name, col, row) => {
+			if (this.towerLog.length >= this.MAX_TOWER_LOG) this.towerLog.shift();
+			this.towerLog.push({ ts: this.gameState.elapsedSeconds, kind: 'create', name, col, row });
+		};
+		this.towerSystem.onTowerDestroyed = (_col, _row, name) => {
+			if (this.towerLog.length >= this.MAX_TOWER_LOG) this.towerLog.shift();
+			this.towerLog.push({ ts: this.gameState.elapsedSeconds, kind: 'destroy', name: name ?? 'Tower', col: _col, row: _row });
+		};
+		this.towerSystem.onTowerDeletedByEdit = (name, col, row) => {
+			if (this.towerLog.length >= this.MAX_TOWER_LOG) this.towerLog.shift();
+			this.towerLog.push({ ts: this.gameState.elapsedSeconds, kind: 'edit', name, col, row });
+		};
 
 		// --- Vim engine events ---
 		this.engine.onCursorMoved = () => this.updateCursorPosition();
@@ -195,47 +175,80 @@ export class Game extends Scene {
 		// --- HUD and Overlays ---
 		const hudY = cam.height - HUD_HEIGHT;
 		this.add.rectangle(0, hudY, cam.width, HUD_HEIGHT, 0x1c1e26).setOrigin(0, 0).setDepth(100).setScrollFactor(0); // Darker HUD
+		this.add.rectangle(0, hudY, cam.width, 1, 0x232530).setOrigin(0, 0).setDepth(102).setScrollFactor(0); // Top border
+
 
 		// Left section
-		this.hudScore = this.add.text(30, hudY + 8, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '10px', resolution: 3, color: '#d8dee9' }).setDepth(101).setScrollFactor(0);
-		this.hudTime = this.add.text(180, hudY + 8, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '10px', resolution: 3, color: '#d8dee9' }).setDepth(101).setScrollFactor(0);
+		this.hudScore = this.add.text(30, hudY + 10, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '10px', resolution: 3, color: '#d8dee9' }).setDepth(101).setScrollFactor(0);
+		this.hudTime = this.add.text(180, hudY + 10, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '10px', resolution: 3, color: '#4c566a' }).setDepth(101).setScrollFactor(0);
 
-		// Center section
-		this.hudLives = this.add.text(cam.width / 2, hudY + 8, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '10px', resolution: 3, color: '#bf616a' }).setOrigin(0.5, 0).setDepth(101).setScrollFactor(0);
+		// Center section (Game Area Center)
+		this.hudLives = this.add.text(gameAreaWidth / 2, hudY + 10, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '10px', resolution: 3, color: '#bf616a' }).setOrigin(0.5, 0).setDepth(101).setScrollFactor(0);
 
-		// Right section
-		this.hudEnergy = this.add.text(cam.width - 250, hudY + 8, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: '#88c0d0', resolution: 3 }).setOrigin(1, 0).setDepth(101).setScrollFactor(0);
-		this.hudVimStatus = this.add.text(cam.width - 30, hudY + 8, '-- NORMAL --', { fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: '#ebcb8b', resolution: 3 }).setOrigin(1, 0).setDepth(101).setScrollFactor(0);
+		// Right section of Game Area
+		this.hudEnergy = this.add.text(gameAreaWidth - 30, hudY + 10, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: '#a3be8c', resolution: 3 }).setOrigin(1, 0).setDepth(101).setScrollFactor(0);
+		
+		// Inside Clipboard Area
+		this.hudVimStatus = this.add.text(cam.width - 24, hudY + 10, '-- NORMAL --', { fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: '#ebcb8b', resolution: 3 }).setOrigin(1, 0).setDepth(101).setScrollFactor(0);
 
 		this.engine.onStatusUpdate = (leftStatus: string, rightStatus: string) => {
 			this.hudVimStatus.setText(`${leftStatus}   [${rightStatus}]`);
 		};
 
-		this.gameOverOverlay = this.add.rectangle(0, 0, cam.width, cam.height, 0x000000, 0.8).setOrigin(0, 0).setDepth(300).setScrollFactor(0).setVisible(false);
-		this.gameOverTitle = this.add.text(cam.width / 2, cam.height / 2 - 80, 'FATAL ERROR: VIM ARENA CRASHED', { fontFamily: '"Press Start 2P", monospace', fontSize: '24px', color: '#bf616a' }).setOrigin(0.5).setDepth(301).setScrollFactor(0).setVisible(false);
-		this.gameOverScore = this.add.text(cam.width / 2, cam.height / 2 - 20, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '18px', color: '#d8dee9' }).setOrigin(0.5).setDepth(301).setScrollFactor(0).setVisible(false);
-		this.gameOverHint = this.add.text(cam.width / 2, cam.height / 2 + 150, 'Type :w to save score and exit, :q to exit without saving', {
-			fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: '#88c0d0'
-		}).setOrigin(0.5).setDepth(302).setScrollFactor(0).setVisible(false);
+		// Game over overlay (created but populated in showGameOver)
+		this.gameOverOverlay = this.add.rectangle(0, 0, cam.width, cam.height, 0x0d1117, 0.96)
+			.setOrigin(0, 0).setDepth(300).setScrollFactor(0).setVisible(false);
+
+		// Container holds all game-over UI so it can be hidden/shown cleanly
+		this.gameOverContainer = this.add.container(0, 0).setDepth(301).setScrollFactor(0).setVisible(false);
+
+		// Command line at the bottom — a vim-style bar
+		const cmdBarY = cam.height - 56;
+		this.gameOverCmdBg = this.add.rectangle(0, cmdBarY, cam.width, 56, 0x161b22)
+			.setOrigin(0, 0).setDepth(310).setScrollFactor(0).setVisible(false);
+
+		// Top border of command bar (hidden until game over)
+		this.gameOverCmdBorder = this.add.rectangle(0, cmdBarY, cam.width, 1, 0xbf616a)
+			.setOrigin(0, 0).setDepth(311).setScrollFactor(0).setVisible(false);
+
+		this.gameOverCmdLine = this.add.text(16, cmdBarY + 14, ':', {
+			fontFamily: 'monospace', fontSize: '20px', color: '#d8dee9', resolution: 2
+		}).setDepth(312).setScrollFactor(0).setVisible(false);
+
+		this.gameOverCmdCursor = this.add.rectangle(18, cmdBarY + 14, 12, 22, 0x88c0d0)
+			.setOrigin(0, 0).setDepth(313).setScrollFactor(0).setVisible(false);
+
+		this.gameOverStatusText = this.add.text(cam.width - 16, cmdBarY + 18, '', {
+			fontFamily: 'monospace', fontSize: '13px', color: '#4c566a', resolution: 2
+		}).setOrigin(1, 0).setDepth(312).setScrollFactor(0).setVisible(false);
 
 		// --- Input ---
 		this.input.keyboard?.on('keydown', (event: KeyboardEvent) => {
 			if (this.gameState.isGameOver) {
 				if (event.key === 'Enter') {
-					if (this.gameOverCommand === ':w') {
-						this.saveScoreAndQuit();
+					if (this.gameOverCommand.startsWith(':w')) {
+						const parts = this.gameOverCommand.trim().split(/\s+/);
+						const name = parts.length > 1 ? parts.slice(1).join(' ') : undefined;
+						this.saveScoreAndQuit(name);
 					} else if (this.gameOverCommand === ':q') {
 						this.quitToDashboard();
+					} else {
+						// Unknown command — flash red
+						this.gameOverCmdLine.setColor('#bf616a');
+						this.time.delayedCall(400, () => this.gameOverCmdLine.setColor('#d8dee9'));
 					}
-					this.gameOverCommand = '';
-				} else if (event.key === 'Backspace') {
+					return;
+				}
+				if (event.key === 'Backspace') {
 					this.gameOverCommand = this.gameOverCommand.slice(0, -1);
 				} else if (event.key.length === 1) {
-					this.gameOverCommand += event.key;
+					if (event.key === ':' && this.gameOverCommand === '') {
+						this.gameOverCommand = ':';
+					} else if (this.gameOverCommand.startsWith(':') || event.key === ':') {
+						this.gameOverCommand += event.key;
+					}
 				}
-				
-				// Update HUD with game over command
-				this.hudVimStatus.setText(this.gameOverCommand || '--- GAME OVER ---');
+				this.updateGameOverCmdLine();
 				return;
 			}
 
@@ -251,8 +264,44 @@ export class Game extends Scene {
 		this.engine.triggerCursorMoved();
 	}
 
+	private updateGameOverCmdLine() {
+		const cmd = this.gameOverCommand;
+		this.gameOverCmdLine.setText(cmd || ':');
+
+		// Color hint based on command
+		if (cmd.startsWith(':w')) {
+			this.gameOverCmdLine.setColor('#a3be8c');
+			this.gameOverStatusText.setText(':w <name>  →  save & quit');
+		} else if (cmd.startsWith(':q')) {
+			this.gameOverCmdLine.setColor('#ebcb8b');
+			this.gameOverStatusText.setText(':q  →  quit without saving');
+		} else if (cmd.length > 0) {
+			this.gameOverCmdLine.setColor('#bf616a');
+			this.gameOverStatusText.setText('unknown command');
+		} else {
+			this.gameOverCmdLine.setColor('#d8dee9');
+			this.gameOverStatusText.setText(':w <name>  save   |   :q  quit');
+		}
+
+		// Reposition cursor after text
+		const cam = this.cameras.main;
+		const cmdBarY = cam.height - 56;
+		const textWidth = this.gameOverCmdLine.width;
+		this.gameOverCmdCursor.x = 16 + textWidth + 2;
+		this.gameOverCmdCursor.y = cmdBarY + 14;
+	}
+
 	update(_time: number, delta: number) {
-		if (this.gameState.isGameOver) return;
+		if (this.gameState.isGameOver) {
+			// Blink cursor
+			this.cursorBlinkTimer += delta;
+			if (this.cursorBlinkTimer > 530) {
+				this.cursorBlinkTimer = 0;
+				this.cursorVisible = !this.cursorVisible;
+				this.gameOverCmdCursor.setVisible(this.cursorVisible);
+			}
+			return;
+		}
 
 		const cam = this.cameras.main;
 		const scrollX = cam.scrollX;
@@ -319,7 +368,7 @@ export class Game extends Scene {
 
 		const cam = this.cameras.main;
 		const visibleRows = Math.floor(cam.height / FONT_HEIGHT);
-		const gameAreaWidth = cam.width - this.gameAreaStartX - (cam.width * 0.15);
+		const gameAreaWidth = cam.width - this.gameAreaStartX - 320;
 		const visibleCols = Math.floor(gameAreaWidth / this.fontWidth);
 
 		if (this.engine.cursorRow < this.firstVisibleRow + SCROLLOFF_ROWS)
@@ -343,7 +392,7 @@ export class Game extends Scene {
 			let display = '';
 			if (row >= 0) {
 				if (row === cursorRow) {
-					display = row.toString();
+					display = (row + 1).toString();
 				} else {
 					display = Math.abs(row - cursorRow).toString();
 				}
@@ -371,60 +420,172 @@ export class Game extends Scene {
 
 	// ---- Game over ----
 	private async showGameOver(): Promise<void> {
-		this.gameOverScore.setText(`SCORE DUMP: ${this.gameState.kills} KILLS`);
-		this.gameOverOverlay.setFillStyle(0x2e3440, 0.95); // Nord Deep Background
-		this.gameOverOverlay.setVisible(true);
-		
-		this.gameOverTitle.setText('!!! VIM ARENA KERNEL PANIC !!!');
-		this.gameOverTitle.setColor('#bf616a'); // Nord Red
-		this.gameOverTitle.setVisible(true);
-		
-		this.gameOverScore.setVisible(true);
-		this.gameOverHint.setVisible(true);
-
 		const cam = this.cameras.main;
-		const centerX = cam.width / 2;
-		
-		// Add some "error dump" text lines
-		const errorLines = [
-			`[${Date.now()}] ERROR: All defensive buffers cleared.`,
-			`[${Date.now() + 12}] STACK TRACE: main.ts -> TowerSystem.ts -> NULL_POINTER`,
-			`[${Date.now() + 45}] VIM_SIGNAL: Caught deadly signal SEGV`,
-			`[${Date.now() + 89}] MEM_DUMP: ${'0x' + Math.random().toString(16).slice(2, 10).toUpperCase()}`
-		];
+		const w = cam.width;
+		const h = cam.height;
+		const panelW = Math.min(740, w - 80);
+		const panelX = (w - panelW) / 2;
+		const panelY = 40;
+		const panelH = h - 120;
+		const D = 302;
 
-		errorLines.forEach((line, i) => {
-			this.add.text(centerX, cam.height / 2 - 150 + (i * 15), line, {
-				fontFamily: 'monospace', fontSize: '10px', color: '#4c566a'
-			}).setOrigin(0.5).setDepth(301).setScrollFactor(0);
-		});
+		// Show full-screen dim
+		this.gameOverOverlay.setVisible(true);
+
+		// ── Panel background ──────────────────────────────────────────────
+		const panelBg = this.add.rectangle(panelX, panelY, panelW, panelH, 0x0d1117, 0.98)
+			.setOrigin(0, 0).setDepth(D).setScrollFactor(0);
+
+		// Border
+		const borderPts = [
+			panelX, panelY,
+			panelX + panelW, panelY,
+			panelX + panelW, panelY + panelH,
+			panelX, panelY + panelH,
+			panelX, panelY
+		];
+		const gfx = this.add.graphics().setDepth(D + 1).setScrollFactor(0);
+		gfx.lineStyle(1, 0xbf616a, 1);
+		gfx.strokePoints(borderPts.reduce((acc, v, i) => {
+			if (i % 2 === 0) acc.push({ x: v, y: borderPts[i + 1] });
+			return acc;
+		}, [] as { x: number; y: number }[]), true);
+
+		// ── Title bar ─────────────────────────────────────────────────────
+		this.add.rectangle(panelX, panelY, panelW, 36, 0xbf616a)
+			.setOrigin(0, 0).setDepth(D + 1).setScrollFactor(0);
+		this.add.text(panelX + panelW / 2, panelY + 18,
+			'[KERNEL PANIC] vim-arena crashed — core dumped',
+			{ fontFamily: 'monospace', fontSize: '13px', color: '#0d1117', fontStyle: 'bold', resolution: 2 }
+		).setOrigin(0.5, 0.5).setDepth(D + 2).setScrollFactor(0);
+
+		// ── Body content ──────────────────────────────────────────────────
+		let cy = panelY + 52; // current Y cursor inside panel
+		const px = panelX + 20;
+		const monoSm = { fontFamily: 'monospace', fontSize: '12px', resolution: 2 };
+		const monoMd = { fontFamily: 'monospace', fontSize: '14px', resolution: 2 };
+
+		// Score banner
+		this.add.text(panelX + panelW / 2, cy,
+			`${this.gameState.kills} KILLS`,
+			{ fontFamily: '"Press Start 2P", monospace', fontSize: '28px', color: '#bf616a', resolution: 3 }
+		).setOrigin(0.5, 0).setDepth(D + 2).setScrollFactor(0);
+		cy += 44;
+
+		this.add.text(panelX + panelW / 2, cy, 'session terminated',
+			{ ...monoSm, color: '#4c566a' }
+		).setOrigin(0.5, 0).setDepth(D + 2).setScrollFactor(0);
+		cy += 28;
+
+		// Divider
+		gfx.lineStyle(1, 0x30363d, 1);
+		gfx.lineBetween(px, cy, panelX + panelW - 20, cy);
+		cy += 14;
+
+		// Tower event log header
+		this.add.text(px, cy, 'TOWER LOG', { ...monoSm, color: '#e5c07b', fontStyle: 'bold' })
+			.setOrigin(0, 0).setDepth(D + 2).setScrollFactor(0);
+		this.add.text(panelX + panelW - 20, cy, `git log --diff-filter=CD towers`,
+			{ ...monoSm, color: '#3b4252' }
+		).setOrigin(1, 0).setDepth(D + 2).setScrollFactor(0);
+		cy += 22;
+
+		// Pull last 6 entries (most recent first)
+		const logEntries = this.towerLog.slice(-6).reverse();
+		if (logEntries.length === 0) {
+			this.add.text(px + 4, cy, 'no tower events recorded',
+				{ ...monoSm, color: '#3b4252' }
+			).setOrigin(0, 0).setDepth(D + 2).setScrollFactor(0);
+			cy += 20;
+		} else {
+			for (const entry of logEntries) {
+				const timeStr = this.formatTime(entry.ts);
+				let prefix: string, msgColor: string, msg: string;
+				if (entry.kind === 'create') {
+					prefix = '+ create';
+					msgColor = '#a3be8c';
+					msg = `${entry.name}  at col:${entry.col} row:${entry.row}`;
+				} else if (entry.kind === 'destroy') {
+					prefix = '- destroy';
+					msgColor = '#bf616a';
+					msg = `${entry.name}  destroyed by enemy`;
+				} else {
+					prefix = '~ edit';
+					msgColor = '#ebcb8b';
+					msg = `${entry.name}  deleted via buffer edit`;
+				}
+				this.add.text(px, cy, timeStr,
+					{ ...monoSm, color: '#3b4252' }
+				).setOrigin(0, 0).setDepth(D + 2).setScrollFactor(0);
+				this.add.text(px + 58, cy, prefix,
+					{ ...monoSm, color: msgColor }
+				).setOrigin(0, 0).setDepth(D + 2).setScrollFactor(0);
+				this.add.text(px + 152, cy, msg,
+					{ ...monoSm, color: '#d8dee9' }
+				).setOrigin(0, 0).setDepth(D + 2).setScrollFactor(0);
+				cy += 20;
+			}
+		}
+		cy += 6;
+
+		// Divider
+		gfx.lineBetween(px, cy, panelX + panelW - 20, cy);
+		cy += 14;
+
+		// Leaderboard header
+		this.add.text(px, cy, 'TOP SCORES', { ...monoSm, color: '#e5c07b', fontStyle: 'bold' })
+			.setOrigin(0, 0).setDepth(D + 2).setScrollFactor(0);
+		this.add.text(panelX + panelW - 20, cy, 'git log --oneline scores',
+			{ ...monoSm, color: '#3b4252' }
+		).setOrigin(1, 0).setDepth(D + 2).setScrollFactor(0);
+		cy += 22;
 
 		try {
 			const response = await fetch(`${import.meta.env.VITE_API_URL}/scores`);
-			const topScores = await response.json();
-
-			let leaderboardText = "--- TOP SCORES (SYSTEM PROCESSES) ---\n\n";
-			leaderboardText += "RANK   PID    USER    SCORE\n";
-			leaderboardText += "----------------------------\n";
-			topScores.forEach((entry: any, index: number) => {
-				const pid = Math.floor(Math.random() * 9000) + 1000;
-				leaderboardText += `${(index + 1).toString().padStart(2, ' ')}   ${pid}   ${entry.playerName.padEnd(5, ' ')}   ${entry.score.toString().padStart(5, ' ')}\n`;
-			});
-
-			const lbText = this.add.text(centerX, cam.height / 2 + 50, leaderboardText, {
-				fontFamily: 'monospace', fontSize: '12px', color: '#88c0d0', align: 'center', lineSpacing: 5
-			}).setOrigin(0.5, 0).setDepth(302).setScrollFactor(0);
-
-			this.gameOverHint.y = lbText.y + lbText.height + 40;
-			this.gameOverHint.setText('Type :w to submit dump, :q to abort');
-		} catch (error) {
-			console.error('Failed to fetch leaderboard:', error);
+			const topScores: any[] = await response.json();
+			const top5 = topScores.slice(0, 5);
+			const medals = ['★', '○', '○', '·', '·'];
+			const rankColors = ['#ebcb8b', '#b48ead', '#88c0d0', '#4c566a', '#4c566a'];
+			for (let i = 0; i < top5.length; i++) {
+				const e = top5[i];
+				const hash = e._id ? e._id.slice(-7) : Math.random().toString(16).slice(2, 9);
+				this.add.text(px, cy, `${medals[i]} ${hash}`, { ...monoSm, color: rankColors[i] })
+					.setOrigin(0, 0).setDepth(D + 2).setScrollFactor(0);
+				this.add.text(px + 120, cy, e.playerName.padEnd(10, ' '),
+					{ ...monoSm, color: '#d8dee9' }
+				).setOrigin(0, 0).setDepth(D + 2).setScrollFactor(0);
+				this.add.text(px + 240, cy, `+${e.score} kills`,
+					{ ...monoSm, color: i === 0 ? '#bf616a' : '#a3be8c' }
+				).setOrigin(0, 0).setDepth(D + 2).setScrollFactor(0);
+				cy += 20;
+			}
+		} catch {
+			this.add.text(px, cy, 'could not reach remote — no scores loaded',
+				{ ...monoSm, color: '#4c566a' }
+			).setOrigin(0, 0).setDepth(D + 2).setScrollFactor(0);
 		}
+
+		// ── Hint at bottom of panel ────────────────────────────────────────
+		const hintY = panelY + panelH - 34;
+		this.add.text(panelX + panelW / 2, hintY,
+			':w <your name>   save & quit     |     :q   quit without saving',
+			{ ...monoSm, color: '#3b4252', align: 'center' }
+		).setOrigin(0.5, 0).setDepth(D + 2).setScrollFactor(0);
+
+		// ── Command bar ───────────────────────────────────────────────────
+		this.gameOverCmdBg.setVisible(true);
+		this.gameOverCmdBorder.setVisible(true);
+		this.gameOverCmdLine.setVisible(true);
+		this.gameOverCmdCursor.setVisible(true);
+		this.gameOverStatusText.setVisible(true);
+		this.updateGameOverCmdLine();
 	}
 
-	private async saveScoreAndQuit() {
-		this.gameOverHint.setText('Saving score...');
-		let playerName = (window as any).googlePlayerName || "VIM";
+	private async saveScoreAndQuit(customName?: string) {
+		this.gameOverCmdLine.setText('writing...').setColor('#ebcb8b');
+		this.gameOverCmdCursor.setVisible(false);
+		let playerName = customName || (window as any).googlePlayerName || "GUEST";
+		playerName = playerName.substring(0, 10).toUpperCase();
 		try {
 			await fetch(`${import.meta.env.VITE_API_URL}/scores`, {
 				method: 'POST',
@@ -451,7 +612,7 @@ export class Game extends Scene {
 	private updateClipboardUI(): void {
 		const clipboard = this.towerSystem.clipboard;
 		const cam = this.cameras.main;
-		const clipboardPanelWidth = Math.floor(cam.width * 0.15);
+		const clipboardPanelWidth = 320;
 		const clipboardX = cam.width - clipboardPanelWidth;
 
 		// Clear old entries
@@ -474,18 +635,29 @@ export class Game extends Scene {
 		} else {
 			for (let i = 0; i < entries.length; i++) {
 				const entry = entries[i];
-				const patternStr = entry.towerType.pattern.join('\n');
 
 				const cost = clipboard.getEntryCost(entry);
-				const statStr = cost > 0 ? ` (${entry.currentKills}/${cost})` : '';
+				const statStr = cost > 0 ? ` (${cost}E)` : '';
 
-				const entryText = this.add.text(clipboardX + 10, y,
-					`[${i + 1}p] ${entry.towerType.name}${statStr}\n${patternStr}`,
-					{ fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: '#d4d4d4' }
+				// Header (Press Start 2P font)
+				const nameText = this.add.text(clipboardX + 20, y,
+					`[${i + 1}p] ${entry.towerType.name}${statStr}`,
+					{ fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: '#88c0d0' }
 				);
-				entryText.setOrigin(0, 0).setScrollFactor(0).setDepth(42);
-				this.clipboardEntries.push(entryText);
-				y += 100 + (entry.towerType.pattern.length * 10);
+				nameText.setOrigin(0, 0).setScrollFactor(0).setDepth(42);
+				this.clipboardEntries.push(nameText);
+
+				// Pattern (Render line-by-line to force a perfectly square grid)
+				const pLines = entry.towerType.pattern;
+				for (let r = 0; r < pLines.length; r++) {
+					const lineText = this.add.text(clipboardX + 20, y + 20 + (r * 10), pLines[r], {
+						fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: '#d8dee9'
+					});
+					lineText.setOrigin(0, 0).setScrollFactor(0).setDepth(42);
+					this.clipboardEntries.push(lineText);
+				}
+
+				y += 20 + (pLines.length * 10) + 30;
 			}
 		}
 	}

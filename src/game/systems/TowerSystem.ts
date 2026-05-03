@@ -24,7 +24,9 @@ export class TowerSystem {
     private towers: Map<string, Tower> = new Map();
     private towerPatterns: Map<string, {type: string, startCol: number, startRow: number}> = new Map();
 
-    public onTowerDestroyed?: (col: number, row: number) => void;
+    public onTowerCreated?: (name: string, col: number, row: number) => void;
+    public onTowerDestroyed?: (col: number, row: number, name?: string) => void;
+    public onTowerDeletedByEdit?: (name: string, col: number, row: number) => void;
 
     constructor(scene: Scene, vim: VimEngine, gutterWidth: number, fontWidth: number, fontHeight: number, gameState: GameState, centerCol: number = 35) {
         this.scene = scene;
@@ -84,8 +86,8 @@ export class TowerSystem {
         const entryIndex = Math.min(index, clipboard.length - 1);
         const entry = clipboard[entryIndex];
 
-        if (entry.currentKills < this.clipboardSystem.getEntryCost(entry)) {
-            // Not ready to paste yet
+        if (!this.clipboardSystem.useEntry(entryIndex)) {
+            // Not enough energy to paste
             return;
         }
 
@@ -112,8 +114,6 @@ export class TowerSystem {
             TOWER_TYPES[towerId] = towerType;
         }
         this.towerPatterns.set(`${col},${row}`, {type: towerId || 'sniper', startCol: col, startRow: row});
-        
-        this.clipboardSystem.useEntry(entryIndex);
         
         // Trigger generic render
         if (this.vim.onRenderAll) {
@@ -153,6 +153,9 @@ export class TowerSystem {
                 }
                 
                 if (mismatched) {
+                    const patInfo = this.towerPatterns.get(key);
+                    const tName = patInfo ? (TOWER_TYPES[patInfo.type]?.name ?? patInfo.type) : 'Tower';
+                    this.onTowerDeletedByEdit?.(tName, patternInfo.startCol, patternInfo.startRow);
                     tower.destroy();
                     this.towers.delete(key);
                     this.towerPatterns.delete(key);
@@ -203,6 +206,7 @@ export class TowerSystem {
                             this.fontWidth * firstLine.length, 
                             this.fontHeight * towerType.pattern.length
                         ));
+                        this.onTowerCreated?.(towerType.name, foundCol, row);
                     }
                 }
                 
@@ -225,20 +229,29 @@ export class TowerSystem {
         if (died) {
             let actualKey = '';
             for (const [k, t] of this.towers.entries()) {
-                if (t === tower) {
-                    actualKey = k;
-                    break;
-                }
+                if (t === tower) { actualKey = k; break; }
             }
             if (actualKey) {
                 const patternInfo = this.towerPatterns.get(actualKey);
+
+                // ── Remove from registry FIRST ──────────────────────────────
+                // scanRow is triggered by onRenderRow (called below when we
+                // erase the buffer). If the tower is still registered when
+                // scanRow runs, it detects a pattern mismatch and fires
+                // onTowerDeletedByEdit ("buffer edit by user") — wrong.
+                // Deleting from the maps before touching vim.lines means
+                // scanRow sees no registered tower and stays silent.
+                this.towers.delete(actualKey);
+                this.towerPatterns.delete(actualKey);
+
+                // ── Erase pattern from vim buffer ────────────────────────────
                 if (patternInfo) {
                     const towerType = TOWER_TYPES[patternInfo.type];
                     if (towerType) {
                         for (let i = 0; i < towerType.pattern.length; i++) {
                             const lineIndex = patternInfo.startRow + i;
                             if (lineIndex < this.vim.lines.length) {
-                                let line = this.vim.lines[lineIndex];
+                                const line = this.vim.lines[lineIndex];
                                 const start = patternInfo.startCol;
                                 const end = start + towerType.pattern[i].length;
                                 this.vim.lines[lineIndex] = line.slice(0, start) + ' '.repeat(end - start) + line.slice(end);
@@ -247,13 +260,11 @@ export class TowerSystem {
                         }
                     }
                 }
-                this.towers.delete(actualKey);
-                this.towerPatterns.delete(actualKey);
             }
             tower.destroy();
             const shootingTowers = this.activeTowers.filter(t => !t.type.isWall && t.type.damage > 0);
             this.gameState.setTowerCount(shootingTowers.length);
-            this.onTowerDestroyed?.(tower.col, tower.row);
+            this.onTowerDestroyed?.(tower.col, tower.row, tower.type.name);
         }
     }
 

@@ -10,6 +10,7 @@ interface AuthContextType {
     user: User | null;
     login: (credential: string) => void;
     logout: () => void;
+    loginAsGuest: () => void;
     isLoading: boolean;
 }
 
@@ -60,6 +61,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         (window as any).googlePlayerName = u.name.substring(0, 10).toUpperCase();
     }, []);
 
+    const loginAsGuest = useCallback(() => {
+        const u: User = {
+            name: 'Guest',
+            email: '',
+            picture: '',
+        };
+        setUser(u);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(u));
+        (window as any).googlePlayerName = undefined;
+    }, []);
+
     const logout = useCallback(() => {
         setUser(null);
         localStorage.removeItem(STORAGE_KEY);
@@ -67,7 +79,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     return (
-        <AuthContext.Provider value={{ user, login, logout, isLoading }}>
+        <AuthContext.Provider value={{ user, login, logout, loginAsGuest, isLoading }}>
             {children}
         </AuthContext.Provider>
     );
