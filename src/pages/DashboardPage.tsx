@@ -171,7 +171,7 @@ export default function DashboardPage() {
                     <h1 style={{ fontFamily: '"Press Start 2P", monospace', fontSize: '28px', color: 'var(--text)', marginBottom: '8px' }}>
                         {isGuest ? 'GUEST' : user.name.toUpperCase()}
                     </h1>
-                    <div style={{ fontSize: '12px', color: 'var(--text-dim)', letterSpacing: '1px' }}>WELCOME BACK TO THE ARENA</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-dim)', letterSpacing: '1px' }}>WELCOME TO THE ARENA</div>
                 </div>
 
                 {/* Core Stats */}
@@ -240,22 +240,6 @@ export default function DashboardPage() {
                                     <div key={item.c} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border)' }}>
                                         <code style={{ color: 'var(--yellow)', fontSize: '10px', fontFamily: '"Press Start 2P", monospace' }}>{item.c}</code>
                                         <span style={{ fontSize: '12px', color: 'var(--text-dim)' }}>{item.d}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                        <div>
-                            <h3 style={{ fontSize: '11px', color: 'var(--text-dim)', letterSpacing: '2px', marginBottom: '24px' }}>OBJECTIVES</h3>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                                {[
-                                    'Protect your combat towers at all costs.',
-                                    'Eliminate enemies to generate energy.',
-                                    'Utilize walls to redirect enemy flow.',
-                                    'Survive as long as a combat unit remains.'
-                                ].map((r, i) => (
-                                    <div key={i} style={{ display: 'flex', gap: '12px', fontSize: '12px', color: 'var(--text-dim)', lineHeight: '1.5' }}>
-                                        <span style={{ color: 'var(--yellow)' }}>·</span>
-                                        <span>{r}</span>
                                     </div>
                                 ))}
                             </div>
