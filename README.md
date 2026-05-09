@@ -1,8 +1,6 @@
 # VIM ARENA
 
-> High-precision tower defense where the text buffer is the battlefield.
-
-Vim Arena is a minimalist, developer-centric tower defense game. Navigate, build, and defend using authentic Vim motions and modes.
+Vim Arena is tower defense game, where you navigate, build, and defend using Vim Motions and modes.
 
 [Live Arena](https://vim-arena-five.vercel.app/)
 
