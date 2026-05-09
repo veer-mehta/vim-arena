@@ -11,6 +11,7 @@ interface VimLayoutProps {
     bodyRef?: React.Ref<HTMLDivElement>;
     gutterLineHeight?: number;
     bodyAlignItems?: string;
+    transparentBg?: boolean;
 }
 
 export function VimLayout({
@@ -23,11 +24,12 @@ export function VimLayout({
     statusShortcuts,
     bodyRef,
     gutterLineHeight = 24,
-    bodyAlignItems = 'center'
+    bodyAlignItems = 'center',
+    transparentBg = false
 }: VimLayoutProps) {
     return (
-        <div className="page">
-            <div className="vim-editor">
+        <div className="page" style={transparentBg ? { background: 'transparent' } : {}}>
+            <div className="vim-editor" style={transparentBg ? { background: 'transparent' } : {}}>
                 {/* ── Gutter ── */}
                 <div className="vim-main">
                     <div className="vim-gutter">
@@ -43,7 +45,7 @@ export function VimLayout({
                 </div>
 
                 {/* ── Status bar ── */}
-                <div className="vim-statusline" style={{ borderTop: '1px solid var(--border)', background: 'transparent', height: '24px' }}>
+                <div className="vim-statusline" style={{ borderTop: '1px solid var(--border)', height: '24px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
                         <span style={{ 
                             color: 'var(--accent)', 
@@ -61,7 +63,7 @@ export function VimLayout({
                 </div>
 
                 {/* ── Command line ── */}
-                <div className="vim-commandline" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'transparent', height: '32px' }}>
+                <div className="vim-commandline" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: '32px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span style={{ color: 'var(--text)', fontSize: '13px' }}>{commandBuffer || ''}</span>
                         {!commandBuffer && <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>system command...</span>}

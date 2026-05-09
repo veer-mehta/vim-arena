@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { VimLayout } from '../components/VimLayout';
+import { AUTO, Game, Scale, Types } from 'phaser';
+import { LoginBackground } from '../game/scenes/LoginBackground';
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
@@ -23,6 +25,8 @@ export default function LoginPage() {
     const [vimMode, setVimMode] = useState<'NORMAL' | 'COMMAND'>('NORMAL');
     const [isGoogleHovered, setIsGoogleHovered] = useState(false);
     const [isGuestHovered, setIsGuestHovered] = useState(false);
+    const gameRef = useRef<Game | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         if (!isLoading && user) {
@@ -102,17 +106,48 @@ export default function LoginPage() {
         }
     }, [isLoading, user, login]);
 
+    useEffect(() => {
+        if (!containerRef.current || gameRef.current) return;
+
+        const config: Types.Core.GameConfig = {
+            type: AUTO,
+            width: '100%',
+            height: '100%',
+            parent: containerRef.current,
+            backgroundColor: '#050505',
+            pixelArt: true,
+            scale: {
+                mode: Scale.RESIZE,
+                autoCenter: Scale.CENTER_BOTH,
+            },
+            scene: [LoginBackground],
+        };
+
+        gameRef.current = new Game(config);
+
+        return () => {
+            if (gameRef.current) {
+                gameRef.current.destroy(true);
+                gameRef.current = null;
+            }
+        };
+    }, []);
+
     if (isLoading) return null;
 
     return (
-        <VimLayout
-            gutterLines={40}
-            vimMode={vimMode}
-            filename="auth.html"
-            statusShortcuts=""
-            commandBuffer={commandBuffer}
-            cmdHint={navHint}
-        >
+        <div style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden' }}>
+            <div ref={containerRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 0 }} />
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', zIndex: 1 }}>
+                <VimLayout
+                    gutterLines={40}
+                    vimMode={vimMode}
+                    filename="auth.html"
+                    statusShortcuts=""
+                    commandBuffer={commandBuffer}
+                    cmdHint={navHint}
+                    transparentBg={true}
+                >
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '64px' }}>
                 
                 <div style={{ textAlign: 'center' }}>
@@ -197,12 +232,14 @@ export default function LoginPage() {
                                 outline: 'none'
                             }}
                         >
-                            Guest Access
+                            Play as Guest
                         </button>
                     </div>
                 </div>
 
             </div>
         </VimLayout>
+            </div>
+        </div>
     );
 }

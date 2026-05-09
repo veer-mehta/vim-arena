@@ -62,7 +62,7 @@ export class EnemySystem {
         let nearest: Tower | null = null;
         let nearestDist = Infinity;
         for (const t of towers) {
-            if (t.isDead || t.type.isWall) continue;
+            if (t.isDead) continue;
             const d = Math.hypot(enemy.x - t.worldX, enemy.y - t.worldY);
             if (d < nearestDist) { nearestDist = d; nearest = t; }
         }

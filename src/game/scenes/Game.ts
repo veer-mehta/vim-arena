@@ -16,6 +16,7 @@ export class Game extends Scene {
 	// --- Vim layer ---
 	private engine!: VimEngine;
 	private cursorRect!: GameObjects.Rectangle;
+	private cursorCharText!: GameObjects.Text;
 	private visualRect!: GameObjects.Rectangle;
 	private rowTextsBg: Map<number, GameObjects.Text> = new Map();
 	private rowTextsFg: Map<number, GameObjects.Text> = new Map();
@@ -89,8 +90,10 @@ export class Game extends Scene {
 
 
 		// --- Cursor ---
-		this.cursorRect = this.add.rectangle(0, 0, this.fontWidth, FONT_HEIGHT, T.phaserCursor, 0.7);
+		this.cursorRect = this.add.rectangle(0, 0, this.fontWidth, FONT_HEIGHT, T.phaserCursor, 1.0);
 		this.cursorRect.setOrigin(0, 0).setDepth(10);
+		this.cursorCharText = this.add.text(0, 0, '', { fontFamily: '"Press Start 2P", monospace', fontSize: `${FONT_HEIGHT}px`, color: T.bg, resolution: 3 });
+		this.cursorCharText.setOrigin(0, 0).setDepth(11);
 
 		// --- Visual Mode Highlight ---
 		this.visualRect = this.add.rectangle(0, 0, 0, 0, T.phaserVisual, 0.3);
@@ -244,7 +247,7 @@ export class Game extends Scene {
 		this.gameOverCmdBorder = this.add.rectangle(0, cmdBarY, cam.width, 1, T.phaserSuccessNum)
 			.setOrigin(0, 0).setDepth(311).setScrollFactor(0).setVisible(false);
 
-		this.gameOverCmdLine = this.add.text(16, cmdBarY + 14, ':', {
+		this.gameOverCmdLine = this.add.text(16, cmdBarY + 14, '', {
 			fontFamily: 'monospace', fontSize: '20px', color: '#ffffff', resolution: 2
 		}).setDepth(312).setScrollFactor(0).setVisible(false);
 
@@ -304,7 +307,7 @@ export class Game extends Scene {
 	private updateGameOverCmdLine() {
 		const T = THEMES.minimal;
 		const cmd = this.gameOverCommand;
-		this.gameOverCmdLine.setText(cmd || ':');
+		this.gameOverCmdLine.setText(cmd || '');
 
 		// Color hint based on command
 		if (cmd.startsWith(':w')) {
@@ -431,6 +434,12 @@ export class Game extends Scene {
 	private updateCursorPosition() {
 		this.cursorRect.x = this.gameAreaStartX + this.engine.cursorCol * this.fontWidth;
 		this.cursorRect.y = this.engine.cursorRow * FONT_HEIGHT;
+		
+		this.cursorCharText.x = this.cursorRect.x;
+		this.cursorCharText.y = this.cursorRect.y;
+		const lineStr = this.engine.lines[this.engine.cursorRow] || '';
+		const charUnderCursor = lineStr[this.engine.cursorCol] || ' ';
+		this.cursorCharText.setText(charUnderCursor);
 
 		if (this.engine.mode === 'VISUAL' && this.engine.visualStart) {
 			const startR = Math.min(this.engine.visualStart.row, this.engine.cursorRow);

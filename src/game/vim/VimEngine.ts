@@ -417,6 +417,7 @@ export class VimEngine {
 						const line = this.lines[startRow] || '';
 						const n = Math.max(0, Math.min(c2, line.length) - c1);
 						if (n > 0) {
+							for (let i = c1; i < c1 + n; i++) this.backgroundCells.delete(`${startRow},${i}`);
 							this.lines[startRow] = line.slice(0, c1) + ' '.repeat(n) + line.slice(c1 + n);
 							this.onRenderRow?.(startRow);
 						}
@@ -434,7 +435,10 @@ export class VimEngine {
 								if (r === this.cursorRow) { if (this.cursorRow < startRow) c1 = this.cursorCol; else c2 = this.cursorCol; }
 								if (r === this.cursorRow && (key === 'e' || key === '$' || key === 'l')) c2++;
 								const n = Math.max(0, Math.min(c2, line.length) - c1);
-								if (n > 0) this.lines[r] = line.slice(0, c1) + ' '.repeat(n) + line.slice(c1 + n);
+								if (n > 0) {
+									for (let i = c1; i < c1 + n; i++) this.backgroundCells.delete(`${r},${i}`);
+									this.lines[r] = line.slice(0, c1) + ' '.repeat(n) + line.slice(c1 + n);
+								}
 							}
 							if (minRow === startRow) this.cursorCol = startCol;
 						}

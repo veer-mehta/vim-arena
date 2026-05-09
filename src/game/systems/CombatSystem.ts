@@ -32,21 +32,33 @@ export class CombatSystem {
                 const row = Math.floor(e.y / ts.fontHeight);
                 if (row >= 0 && row < vim.lines.length) {
                     const line: string = vim.lines[row];
-                    if (col >= 0 && col < line.length && line[col] !== ' ') {
-                        // Skip cells that belong to a live tower — melee handles those
-                        if (this.towerSystem.isPartOfTower(col, row)) continue;
-                        // Skip background text — it doesn't harm enemies and doesn't get eaten by them
-                        if (vim.isBackground(row, col)) continue;
+                        // Check a 3x3 area around the enemy center to make collision more reliable
+                        const checkCols = [col, Math.floor((e.x - 5 - ts.gutterWidth) / ts.fontWidth), Math.floor((e.x + 5 - ts.gutterWidth) / ts.fontWidth)];
+                        const checkRows = [row, Math.floor((e.y - 5) / ts.fontHeight), Math.floor((e.y + 5) / ts.fontHeight)];
                         
-                        const wasAlive = !e.isDead;
-                        e.takeDamage(0.5);
-                        vim.lines[row] = line.substring(0, col) + ' ' + line.substring(col + 1);
-                        vim.onRenderRow?.(row);
-                        if (wasAlive && e.isDead) {
-                            this.gameState.addKill();
-                            this.towerSystem.clipboard.onEnemyKilled();
+                        let hit = false;
+                        for (const r of new Set(checkRows)) {
+                            if (r < 0 || r >= vim.lines.length) continue;
+                            const curLine = vim.lines[r];
+                            for (const c of new Set(checkCols)) {
+                                if (c < 0 || c >= curLine.length || curLine[c] === ' ') continue;
+                                if (this.towerSystem.isPartOfTower(c, r)) continue;
+                                if (vim.isBackground(r, c)) continue;
+                                
+                                const wasAlive = !e.isDead;
+                                e.takeDamage(1); // Increase damage to 1 so it's visible and effective
+                                vim.lines[r] = curLine.substring(0, c) + ' ' + curLine.substring(c + 1);
+                                vim.onRenderRow?.(r);
+                                if (wasAlive && e.isDead) {
+                                    this.gameState.addKill();
+                                    this.towerSystem.clipboard.onEnemyKilled();
+                                }
+                                hit = true;
+                                break;
+                            }
+                            if (hit) break;
                         }
-                    }
+
                 }
             }
         }

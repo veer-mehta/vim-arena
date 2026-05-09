@@ -144,13 +144,10 @@ export default function LeaderboardPage() {
                         RANKINGS
                     </h1>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <p style={{ fontSize: '11px', color: 'var(--text-dim)', letterSpacing: '1px' }}>
-                            TOP PERFORMANCE RECORDS
-                        </p>
                         <div style={{ display: 'flex', gap: '24px', fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-                            <span>/ SEARCH</span>
-                            <span>: PLAY</span>
-                            <span>: EXIT</span>
+                            <span>&lt;name&gt; SEARCH</span>
+                            <span>:play START GAME</span>
+                            <span>:db BACK TO DASHBOARD</span>
                         </div>
                     </div>
                 </div>

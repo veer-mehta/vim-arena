@@ -151,21 +151,25 @@ export class TowerSystem {
                 if (foundCol === -1) break;
 
                 let match = true;
-                for (let r = 1; r < towerType.pattern.length && match; r++) {
+                let hasBackgroundCell = false;
+                for (let r = 0; r < towerType.pattern.length && match; r++) {
                     const nextLine = lines[row + r] || '';
                     for (let c = 0; c < towerType.pattern[r].length; c++) {
                         if (nextLine[foundCol + c] !== towerType.pattern[r][c]) { match = false; break; }
+                        if (towerType.pattern[r][c] !== ' ' && this.vim.backgroundCells.has(`${row + r},${foundCol + c}`)) {
+                            hasBackgroundCell = true;
+                        }
                     }
                 }
 
                 const key = `${foundCol},${row}`;
-                if (match && !this.towers.has(key)) {
+                if (match && !hasBackgroundCell && !this.towers.has(key)) {
                     const cCol = foundCol + Math.floor(firstLine.length / 2);
                     const cRow = row + Math.floor(towerType.pattern.length / 2);
                     const wx = this.gutterWidth + cCol * this.fontWidth + this.fontWidth / 2;
                     const wy = cRow * this.fontHeight + this.fontHeight / 2;
                     this.towerPatterns.set(key, { type: typeId, startCol: foundCol, startRow: row });
-                    this.towers.set(key, new Tower(this.scene, cCol, cRow, wx, wy, towerType, this.fontWidth * firstLine.length, this.fontHeight * towerType.pattern.length));
+                    this.towers.set(key, new Tower(this.scene, cCol, cRow, wx, wy, towerType, this.fontWidth * firstLine.length, this.fontHeight * towerType.pattern.length, this.gutterWidth, this.fontWidth, this.fontHeight, foundCol, row));
                     this.onTowerCreated?.(towerType.name, foundCol, row);
                 }
                 search = foundCol + 1;
@@ -200,9 +204,11 @@ export class TowerSystem {
                     for (let i = 0; i < towerType.pattern.length; i++) {
                         const li = info.startRow + i;
                         if (li < this.vim.lines.length) {
-                            const line = this.vim.lines[li];
-                            const end = info.startCol + towerType.pattern[i].length;
-                            this.vim.lines[li] = line.slice(0, info.startCol) + ' '.repeat(end - info.startCol) + line.slice(end);
+                            for (let c = 0; c < towerType.pattern[i].length; c++) {
+                                if (towerType.pattern[i][c] !== ' ') {
+                                    this.vim.backgroundCells.add(`${li},${info.startCol + c}`);
+                                }
+                            }
                             this.vim.onRenderRow?.(li);
                         }
                     }
@@ -212,8 +218,8 @@ export class TowerSystem {
         }
 
         tower.destroy();
-        this.gameState.setTowerCount(this.countShootingTowers());
         this.onTowerDestroyed?.(tower.col, tower.row, tower.type.name);
+        this.gameState.setTowerCount(this.countShootingTowers());
     }
 
     update(delta: number): void {
