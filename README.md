@@ -1,159 +1,81 @@
-# VimArena
+# VIM ARENA
 
-VimArena is a high-octane tower defense game where your battlefield is a functional Vim-like text editor. Navigate, build, and defend using authentic Vim motions, operators, and modes.
+> High-precision tower defense where the text buffer is the battlefield.
 
-**[Play VimArena Online!](https://vim-arena-five.vercel.app/)**
+Vim Arena is a minimalist, developer-centric tower defense game. Navigate, build, and defend using authentic Vim motions and modes.
 
-![Game Demo](./demo.png)
+[Live Arena](https://vim-arena-five.vercel.app/)
 
-## The Core Concept
+---
 
-In **VimArena**, the text buffer is the physical arena. Every character represents a wall, a component of a tower, or open space. Your efficiency as a defender is directly tied to your fluency with Vim commands.
+## CORE_CONCEPT
 
-- **Speed is Survival**: Faster navigation means faster response times.
+In **Vim Arena**, the editor's grid is physical. Every character represents a wall, a unit component, or empty space. Your efficiency as a defender is directly tied to your fluency with terminal commands.
+
+- **Speed is Survival**: Faster navigation translates to faster response times.
 - **Precision is Power**: Mastery of operators allows for complex battlefield manipulation.
-- **The Buffer is Alive**: The map is dynamic and evolves as you type and delete.
+- **Dynamic Buffer**: The map evolves as you type, delete, and yank.
 
 ---
 
-## New Features & Updates
+## CONTROL_REFERENCE
 
-- **Manual Wall Construction**: Enter Insert Mode (`i`, `a`) and type directly into the buffer to place low-cost, 1-HP walls. Perfect for quick path redirection.
-- **Advanced Yank & Paste**: Deploy specialized ASCII towers using `y` to copy and `p` to paste. Each tower has unique range, damage, and fire rates.
-- **Strategic Game Over**: The game continues as long as you have combat-capable towers. Survival depends on protecting your infrastructure.
-- **Global Leaderboards**: Compete with other Vim masters and see where you rank in terms of survival time and total kills.
-- **Hybrid Scaling**: Difficulty scales based on both time and kill count, ensuring a consistently challenging experience.
+### NORMAL MODE
+| KEY | ACTION |
+|:---|:---|
+| `h j k l` | Move cursor Left, Down, Up, or Right |
+| `w b e` | Jump to start/end of words |
+| `0 $` | Jump to beginning or end of line |
+| `v` | Enter Visual Mode to select patterns |
+| `y` / `yy` | Yank (copy) current selection or line |
+| `p` | Paste from clipboard slot (1-9) |
+| `x` / `dd` | Delete current cell or line |
+| `i` / `a` | Enter Insert Mode |
+
+### INSERT MODE
+| KEY | ACTION |
+|:---|:---|
+| `Esc` | Return to Normal Mode |
+| `Char` | Place a 1-HP wall at cursor |
+| `BS` | Remove character/structure |
 
 ---
 
-## Project Structure
+## SYSTEM_ARCHITECTURE
+
+Vim Arena utilizes a hybrid architecture: **React 19** for modular UI overlays and **Phaser 3** for high-performance grid rendering, driven by a custom-built **Vim Engine**.
 
 ```text
 src/
-├── context/         # React context for state sharing between React and Phaser
-├── game/            # Core game logic
-│   ├── entities/    # Game objects (Enemies, Towers, Projectiles)
-│   ├── scenes/      # Phaser scene management
-│   ├── systems/     # ECS-like logic (Combat, AI, Economy, Walls)
-│   ├── vim/         # Bespoke Vim state machine and command parser
-│   ├── GameState.ts # Centralized game metrics and difficulty logic
-│   └── main.ts      # Phaser initialization and config
-├── pages/           # React UI components (Game, Leaderboard, Dashboard)
-├── App.tsx          # Main React entry component
-└── main.tsx         # Vite/React entry point
+├── game/            # Core Engine & ECS Systems
+│   ├── systems/     # Combat, AI, Economy, Walls
+│   ├── vim/         # Bespoke Vim Command Parser
+├── pages/           # Minimalist UI (Dashboard, Leaderboard)
+├── context/         # Shared State Architecture
+└── main.tsx         # System Entry
 ```
 
 ---
 
-## Architecture & Integration
+## INITIALIZATION
 
-VimArena leverages a hybrid architecture, combining the reactive power of **React** for UI with the high-performance rendering of **Phaser 3**, all driven by a custom **Vim Engine**.
-
-```mermaid
-graph TD
-    subgraph UI [React UI Layer]
-        RP[GamePage]
-        RL[LeaderboardPage]
-        RD[DashboardPage]
-    end
-
-    subgraph Core [Game Core]
-        PE[Phaser Engine]
-        VE[Vim Engine]
-        GS[GameState]
-    end
-
-    subgraph Logic [Systems]
-        CS[CombatSystem]
-        TS[TowerSystem]
-        ES[EnemySystem]
-        WS[WallSystem]
-        CB[ClipboardSystem]
-    end
-
-    RP <--> PE
-    PE <--> VE
-    PE <--> GS
-    PE --- Logic
-    VE --- WS
-    VE --- CB
-```
-
----
-
-## Control Reference
-
-### Normal Mode (Navigation)
-| Command | Action |
-|:---|:---|
-| `h` `j` `k` `l` | Move cursor Left, Down, Up, or Right. |
-| `w` `b` `e` | Jump to start/end of words. |
-| `0` `$` | Jump to beginning or end of the current line. |
-| `[count] + motion` | Repeat a motion N times (e.g., `5j` to move 5 lines down). |
-
-### Operators & Actions
-| Command | Action |
-|:---|:---|
-| `v` | Enter **Visual Mode** to select patterns. |
-| `y` / `yy` | **Yank** (copy) the current selection or line. |
-| `p` / `[count]p` | **Paste** from clipboard slot N (e.g., `1p` for tower slot 1). |
-| `d` / `dd` | **Delete** the current selection or line. |
-| `c` / `cc` | **Change** (delete and enter Insert Mode). |
-| `i` / `a` | Enter **Insert Mode** before/after the cursor. |
-
-### Insert Mode
-| Command | Action |
-|:---|:---|
-| `Esc` | Return to Normal Mode. |
-| `Any Char` | Places a **1-HP wall** at the cursor location. |
-| `Backspace` | Deletes the character/structure before the cursor. |
-
----
-
-## Tech Stack
-
-- **Phaser 3**: High-performance game engine for rendering the text grid and effects.
-- **React 19**: Modern UI framework for overlays, menus, and leaderboards.
-- **Vite**: Ultra-fast build tool and dev server.
-- **TypeScript**: Type-safe development for complex game systems.
-
----
-
-## Getting Started
-
-### 1. Environment Configuration
-
-You need to set up environment variables for both the client and the server.
-
-**Client (Root Directory):**
-Create a `.env` file in the root directory:
+### 1. ENVIRONMENT
+Set up `.env` in root:
 ```env
-VITE_GOOGLE_CLIENT_ID=your_google_client_id
+VITE_GOOGLE_CLIENT_ID=your_id
 VITE_API_URL=http://localhost:3000
 ```
 
-**Server (`/server` Directory):**
-Create a `.env` file in the `server` directory:
-```env
-MONGODB_URI=your_mongodb_connection_string
-PORT=3000
-```
-
-### 2. Server Setup
-
-The backend handles the leaderboard and authentication state.
+### 2. DEPLOY_SERVER
 ```bash
-cd server
-npm install
-npm start
+cd server && npm install && npm start
 ```
 
-### 3. Client Setup
-
-Run the Phaser game and React UI.
+### 3. DEPLOY_CLIENT
 ```bash
-# From the root directory
-npm install
-npm run dev
+npm install && npm run dev
 ```
 
+---
+
+// TERMINAL COMPETENCY MANDATORY.
