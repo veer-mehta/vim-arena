@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges">
+  <!-- Background -->
+  <rect width="32" height="32" rx="5" fill="#0d1117"/>
+  <!-- Subtle border for light backgrounds -->
+  <rect width="32" height="32" rx="5" fill="none" stroke="#21262d" stroke-width="1.5"/>
+
+  <!-- > chevron — smaller -->
+  <polyline
+    points="5,12 13,16 5,20"
+    fill="none"
+    stroke="#88c0d0"
+    stroke-width="3"
+    stroke-linejoin="miter"
+    stroke-linecap="square"
+  />
+
+  <!-- █ cursor block — larger, dominant -->
+  <rect x="17" y="9" width="11" height="14" fill="#88c0d0"/>
+</svg>

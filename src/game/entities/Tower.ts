@@ -1,4 +1,4 @@
-import { Scene, GameObjects } from 'phaser';
+import { Scene } from 'phaser';
 import { TowerType } from './TowerTypes';
 
 export class Tower {
@@ -10,9 +10,6 @@ export class Tower {
 	public currentHp: number;
 	public fireCooldown: number = 0;
 	public isDead: boolean = false;
-
-	private hpBarBg: GameObjects.Rectangle;
-	private hpBarFill: GameObjects.Rectangle;
 
 	constructor(
 		scene: Scene,
@@ -27,25 +24,10 @@ export class Tower {
 		this.worldY = worldY;
 		this.type = type;
 		this.currentHp = type.maxHp;
-
-		this.hpBarBg = scene.add.rectangle(worldX - charW / 2, worldY + charH / 2 + 1, charW, 3, 0x222222);
-		this.hpBarBg.setOrigin(0, 0);
-		this.hpBarBg.setDepth(30);
-
-		this.hpBarFill = scene.add.rectangle(worldX - charW / 2, worldY + charH / 2 + 1, charW, 3, type.color);
-		this.hpBarFill.setOrigin(0, 0);
-		this.hpBarFill.setDepth(31);
-
-		if (type.isWall) {
-			this.hpBarBg.setVisible(false);
-			this.hpBarFill.setVisible(false);
-		}
 	}
 
 	takeDamage(amount: number): boolean {
 		this.currentHp = Math.max(0, this.currentHp - amount);
-		const ratio = this.currentHp / this.type.maxHp;
-		this.hpBarFill.scaleX = ratio;
 		if (this.currentHp <= 0) { this.isDead = true; }
 		return this.isDead;
 	}
@@ -61,7 +43,5 @@ export class Tower {
 	}
 
 	destroy(): void {
-		this.hpBarBg.destroy();
-		this.hpBarFill.destroy();
 	}
 }

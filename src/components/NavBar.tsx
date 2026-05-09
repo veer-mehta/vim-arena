@@ -1,9 +1,11 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 
 export function NavBar({ activePage }: { activePage?: 'dashboard' | 'leaderboard' }) {
     const navigate = useNavigate();
     const { logout } = useAuth();
+    const { theme } = useTheme();
 
     const handleLogout = () => {
         logout();
@@ -11,37 +13,63 @@ export function NavBar({ activePage }: { activePage?: 'dashboard' | 'leaderboard
     };
 
     const commands = activePage === 'dashboard' ? [
-        { key: ':play', desc: 'Enter Arena', color: '#a3be8c', onClick: () => navigate('/play') },
-        { key: ':lb', desc: 'Leaderboard', color: '#88c0d0', onClick: () => navigate('/leaderboard') },
-        { key: ':q!', desc: 'Exit/Logout', color: '#bf616a', onClick: handleLogout },
+        { key: ':play', desc: 'Enter Arena', color: 'var(--yellow)',     onClick: () => navigate('/play') },
+        { key: ':lb',   desc: 'Leaderboard', color: 'var(--text)',       onClick: () => navigate('/leaderboard') },
+        { key: ':q!',   desc: 'Logout',       color: 'var(--text-muted)', onClick: handleLogout },
     ] : [
-        { key: ':play', desc: 'Enter Arena', color: '#a3be8c', onClick: () => navigate('/play') },
-        { key: ':db', desc: 'Dashboard', color: '#88c0d0', onClick: () => navigate('/dashboard') },
-        { key: ':q!', desc: 'Exit/Logout', color: '#bf616a', onClick: handleLogout },
+        { key: ':play', desc: 'Enter Arena', color: 'var(--yellow)',     onClick: () => navigate('/play') },
+        { key: ':db',   desc: 'Dashboard',   color: 'var(--text)',       onClick: () => navigate('/dashboard') },
+        { key: ':q!',   desc: 'Logout',       color: 'var(--text-muted)', onClick: handleLogout },
     ];
 
     return (
-        <div style={{ position: 'sticky', top: 0, zIndex: 10, background: '#16181d', padding: '12px 40px', borderBottom: '1px solid #1e2030', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', alignSelf: 'stretch' }}>
+        <div style={{
+            position: 'sticky', top: 0, zIndex: 10,
+            background: 'var(--bg)',
+            padding: '16px 40px',
+            borderBottom: '1px solid var(--border)',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            flexWrap: 'wrap', gap: '16px', alignSelf: 'stretch',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+        }}>
+            {/* Logo */}
             <div
                 onClick={() => navigate('/dashboard')}
-                style={{ fontFamily: '"Press Start 2P", monospace', fontSize: '18px', color: '#eceff4', letterSpacing: '4px', textShadow: '0 0 12px rgba(136,192,208,0.2)', cursor: 'pointer' }}
+                style={{
+                    fontFamily: '"Press Start 2P", monospace', fontSize: '14px',
+                    color: 'var(--text)', letterSpacing: '4px', cursor: 'pointer',
+                    transition: 'all 0.3s ease',
+                    display: 'flex', alignItems: 'center', gap: '12px'
+                }}
+                onMouseEnter={e => e.currentTarget.style.color = 'var(--yellow)'}
+                onMouseLeave={e => e.currentTarget.style.color = 'var(--text)'}
             >
                 VIM ARENA
             </div>
-            <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
-                <div style={{ fontSize: '11px', color: '#6b7fa0', letterSpacing: '3px', textTransform: 'uppercase', marginRight: '8px' }}>
-                    // navigate
-                </div>
+
+            {/* Right side: commands */}
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
                 {commands.map(({ key, desc, color, onClick }) => (
                     <div key={key}
                         onClick={onClick}
-                        style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 16px', borderRadius: '4px', cursor: 'pointer', border: '1px solid #1e2030', background: '#12141a', transition: 'all 0.15s' }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = color; (e.currentTarget as HTMLDivElement).style.background = '#161a22'; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = '#1e2030'; (e.currentTarget as HTMLDivElement).style.background = '#12141a'; }}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '12px',
+                            padding: '6px 16px', cursor: 'pointer',
+                            border: '1px solid transparent',
+                            transition: 'all 0.15s ease',
+                        }}
+                        onMouseEnter={e => {
+                            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
+                            e.currentTarget.style.borderColor = 'var(--border)';
+                        }}
+                        onMouseLeave={e => {
+                            e.currentTarget.style.background = 'transparent';
+                            e.currentTarget.style.borderColor = 'transparent';
+                        }}
                     >
-                        <span style={{ fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color }}>{key}</span>
-                        <span style={{ color: '#4c566a', fontSize: '12px' }}>{"\u2014"}</span>
-                        <span style={{ fontSize: '12px', color: '#d8dee9' }}>{desc}</span>
+                        <span style={{ fontSize: '10px', fontWeight: 'bold', color: color, letterSpacing: '1px', fontFamily: '"Press Start 2P", monospace' }}>{key}</span>
+                        <span style={{ fontSize: '10px', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '1px' }}>{desc}</span>
                     </div>
                 ))}
             </div>

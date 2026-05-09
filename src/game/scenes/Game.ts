@@ -4,6 +4,8 @@ import { GameState } from '../GameState';
 import { EnemySystem } from '../systems/EnemySystem';
 import { TowerSystem } from '../systems/TowerSystem';
 import { CombatSystem } from '../systems/CombatSystem';
+import { BackgroundTextSystem } from '../systems/BackgroundTextSystem';
+import { THEMES, ThemeName } from '../../context/ThemeContext';
 
 const FONT_HEIGHT = 24;
 const SCROLLOFF_ROWS = 5;
@@ -15,7 +17,8 @@ export class Game extends Scene {
 	private engine!: VimEngine;
 	private cursorRect!: GameObjects.Rectangle;
 	private visualRect!: GameObjects.Rectangle;
-	private rowTexts: Map<number, GameObjects.Text> = new Map();
+	private rowTextsBg: Map<number, GameObjects.Text> = new Map();
+	private rowTextsFg: Map<number, GameObjects.Text> = new Map();
 	private fontWidth: number;
 	private firstVisibleRow: number = 0;
 	private firstVisibleCol: number = 0;
@@ -27,6 +30,7 @@ export class Game extends Scene {
 	private towerSystem!: TowerSystem;
 	private combatSystem!: CombatSystem;
 	private gameState!: GameState;
+	private backgroundSystem!: BackgroundTextSystem;
 	// --- Game Over Overlay ---
 	private gameOverOverlay!: GameObjects.Rectangle;
 	private gameOverContainer!: GameObjects.Container;
@@ -54,8 +58,10 @@ export class Game extends Scene {
 	private gameOverCommand: string = '';
 
 	create() {
+		const T = THEMES.minimal;
+
 		const cam = this.cameras.main;
-		cam.setBackgroundColor('#16181d'); // Darker BG
+		cam.setBackgroundColor(T.bg);
 		cam.setBounds(0, 0, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER);
 
 		// --- Measure font ---
@@ -67,34 +73,34 @@ export class Game extends Scene {
 		this.gameAreaStartX = 80;
 
 		// --- Clipboard Panel (fills right area) ---
-		const clipboardPanelWidth = 320; // Fixed width to prevent cut-off
+		const clipboardPanelWidth = 320;
 		const clipboardX = cam.width - clipboardPanelWidth;
-		this.clipboardBg = this.add.rectangle(clipboardX, 0, clipboardPanelWidth, cam.height, 0x1c1e26); // Darker Sidebar
+		this.clipboardBg = this.add.rectangle(clipboardX, 0, clipboardPanelWidth, cam.height, T.phaserBgAlt);
 		this.clipboardBg.setOrigin(0, 0).setScrollFactor(0).setDepth(41);
-        
+
 		// Add left border to clipboard
-		this.add.rectangle(clipboardX, 0, 1, cam.height, 0x232530).setOrigin(0, 0).setDepth(42).setScrollFactor(0);
+		this.add.rectangle(clipboardX, 0, 1, cam.height, T.phaserBorder).setOrigin(0, 0).setDepth(42).setScrollFactor(0);
 
 		this.clipboardTitle = this.add.text(clipboardX + 20, 24, 'CLIPBOARD', {
-			fontFamily: '"Press Start 2P", monospace', fontSize: '12px', color: '#eceff4'
+			fontFamily: '"Press Start 2P", monospace', fontSize: '12px', color: T.phaserText
 		});
 		this.clipboardTitle.setOrigin(0, 0).setScrollFactor(0).setDepth(42);
 
 
 
 		// --- Cursor ---
-		this.cursorRect = this.add.rectangle(0, 0, this.fontWidth, FONT_HEIGHT, 0x0099ff, 0.5);
+		this.cursorRect = this.add.rectangle(0, 0, this.fontWidth, FONT_HEIGHT, T.phaserCursor, 0.7);
 		this.cursorRect.setOrigin(0, 0).setDepth(10);
 
 		// --- Visual Mode Highlight ---
-		this.visualRect = this.add.rectangle(0, 0, 0, 0, 0xffff00, 0.3);
+		this.visualRect = this.add.rectangle(0, 0, 0, 0, T.phaserVisual, 0.3);
 		this.visualRect.setOrigin(0, 0).setDepth(9).setVisible(false);
 
 		// --- Line numbers ---
 		const visibleLines = Math.ceil(cam.height / FONT_HEIGHT) + 2;
 		for (let i = 0; i < visibleLines; i++) {
 			const t = this.add.text(this.gameAreaStartX - this.fontWidth - 10, i * FONT_HEIGHT, '', {
-				fontFamily: 'monospace', fontSize: `${FONT_HEIGHT}px`, color: '#4c566a', align: 'right', resolution: 3
+				fontFamily: 'monospace', fontSize: `${FONT_HEIGHT}px`, color: '#444444', align: 'right', resolution: 3
 			});
 			t.setOrigin(1, 0).setScrollFactor(0, 1).setDepth(50);
 			this.lineNumbers.push(t);
@@ -112,6 +118,12 @@ export class Game extends Scene {
 		this.combatSystem = new CombatSystem(this, this.gameState, this.towerSystem);
 		this.enemySystem.setTowerProvider(() => this.towerSystem.activeTowers);
 
+		this.backgroundSystem = new BackgroundTextSystem(this.engine);
+		this.backgroundSystem.isCellProtected = (c, r) => this.towerSystem.isPartOfTower(c, r);
+
+		const visibleRowsOnLoad = Math.floor(cam.height / FONT_HEIGHT);
+		this.backgroundSystem.populate(Math.max(30, visibleRowsOnLoad + 10), gameAreaCols + 200);
+
 		// --- Tower event log ---
 		this.towerSystem.onTowerCreated = (name, col, row) => {
 			if (this.towerLog.length >= this.MAX_TOWER_LOG) this.towerLog.shift();
@@ -127,6 +139,19 @@ export class Game extends Scene {
 		};
 
 		// --- Vim engine events ---
+		this.engine.getViewport = () => {
+			const cam = this.cameras.main;
+			const gameAreaWidth = cam.width - this.gameAreaStartX - 320;
+			const visibleCols = Math.floor(gameAreaWidth / this.fontWidth);
+			const visibleRows = Math.floor(cam.height / FONT_HEIGHT);
+			const firstRow = Math.floor(cam.scrollY / FONT_HEIGHT);
+			return {
+				startCol: this.firstVisibleCol,
+				endCol: this.firstVisibleCol + visibleCols,
+				startRow: firstRow,
+				endRow: firstRow + visibleRows
+			};
+		};
 		this.engine.onCursorMoved = () => this.updateCursorPosition();
 		this.engine.onRenderAll = () => {
 			this.renderText();
@@ -174,25 +199,33 @@ export class Game extends Scene {
 
 		// --- HUD and Overlays ---
 		const hudY = cam.height - HUD_HEIGHT;
-		this.add.rectangle(0, hudY, cam.width, HUD_HEIGHT, 0x1c1e26).setOrigin(0, 0).setDepth(100).setScrollFactor(0); // Darker HUD
-		this.add.rectangle(0, hudY, cam.width, 1, 0x232530).setOrigin(0, 0).setDepth(102).setScrollFactor(0); // Top border
+		this.add.rectangle(0, hudY, cam.width, HUD_HEIGHT, T.phaserBgAlt).setOrigin(0, 0).setDepth(100).setScrollFactor(0);
+		this.add.rectangle(0, hudY, cam.width, 1, T.phaserBorder).setOrigin(0, 0).setDepth(102).setScrollFactor(0);
 
+		// 1 & 2: Vim Position and Status (Far Left)
+		this.hudVimStatus = this.add.text(20, hudY + 10, '[1,1] -- NORMAL --', { fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: T.phaserText, resolution: 3 }).setOrigin(0, 0).setDepth(101).setScrollFactor(0);
+		this.hudTime = this.add.text(260, hudY + 10, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '10px', resolution: 3, color: T.phaserWarning }).setOrigin(0, 0).setDepth(101).setScrollFactor(0);
 
-		// Left section
-		this.hudScore = this.add.text(30, hudY + 10, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '10px', resolution: 3, color: '#d8dee9' }).setDepth(101).setScrollFactor(0);
-		this.hudTime = this.add.text(180, hudY + 10, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '10px', resolution: 3, color: '#4c566a' }).setDepth(101).setScrollFactor(0);
+		// Right Section (Resources & Performance - Right Justified to screen edge)
+		// Kills (Far Right)
+		this.hudScore = this.add.text(cam.width - 20, hudY + 10, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '10px', resolution: 3, color: T.phaserDanger }).setOrigin(1, 0).setDepth(101).setScrollFactor(0);
 
-		// Center section (Game Area Center)
-		this.hudLives = this.add.text(gameAreaWidth / 2, hudY + 10, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '10px', resolution: 3, color: '#bf616a' }).setOrigin(0.5, 0).setDepth(101).setScrollFactor(0);
+		// Towers (Left of Kills)
+		this.hudLives = this.add.text(cam.width - 160, hudY + 10, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '10px', resolution: 3, color: T.phaserDanger }).setOrigin(1, 0).setDepth(101).setScrollFactor(0);
 
-		// Right section of Game Area
-		this.hudEnergy = this.add.text(gameAreaWidth - 30, hudY + 10, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: '#a3be8c', resolution: 3 }).setOrigin(1, 0).setDepth(101).setScrollFactor(0);
-		
-		// Inside Clipboard Area
-		this.hudVimStatus = this.add.text(cam.width - 24, hudY + 10, '-- NORMAL --', { fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: '#ebcb8b', resolution: 3 }).setOrigin(1, 0).setDepth(101).setScrollFactor(0);
+		// Energy (Left of Towers)
+		this.hudEnergy = this.add.text(cam.width - 360, hudY + 10, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: T.phaserSuccess, resolution: 3 }).setOrigin(1, 0).setDepth(101).setScrollFactor(0);
 
 		this.engine.onStatusUpdate = (leftStatus: string, rightStatus: string) => {
-			this.hudVimStatus.setText(`${leftStatus}   [${rightStatus}]`);
+			this.hudVimStatus.setText(`[${rightStatus}] ${leftStatus}`);
+		};
+
+		this.engine.onCommand = (cmd: string) => {
+			if (cmd === ':q!') {
+				this.quitToDashboard();
+				return;
+			}
+			// Other commands handled by engine or other systems
 		};
 
 		// Game over overlay (created but populated in showGameOver)
@@ -208,18 +241,18 @@ export class Game extends Scene {
 			.setOrigin(0, 0).setDepth(310).setScrollFactor(0).setVisible(false);
 
 		// Top border of command bar (hidden until game over)
-		this.gameOverCmdBorder = this.add.rectangle(0, cmdBarY, cam.width, 1, 0xbf616a)
+		this.gameOverCmdBorder = this.add.rectangle(0, cmdBarY, cam.width, 1, T.phaserSuccessNum)
 			.setOrigin(0, 0).setDepth(311).setScrollFactor(0).setVisible(false);
 
 		this.gameOverCmdLine = this.add.text(16, cmdBarY + 14, ':', {
-			fontFamily: 'monospace', fontSize: '20px', color: '#d8dee9', resolution: 2
+			fontFamily: 'monospace', fontSize: '20px', color: '#ffffff', resolution: 2
 		}).setDepth(312).setScrollFactor(0).setVisible(false);
 
-		this.gameOverCmdCursor = this.add.rectangle(18, cmdBarY + 14, 12, 22, 0x88c0d0)
+		this.gameOverCmdCursor = this.add.rectangle(18, cmdBarY + 14, 12, 22, 0xffffff)
 			.setOrigin(0, 0).setDepth(313).setScrollFactor(0).setVisible(false);
 
 		this.gameOverStatusText = this.add.text(cam.width - 16, cmdBarY + 18, '', {
-			fontFamily: 'monospace', fontSize: '13px', color: '#4c566a', resolution: 2
+			fontFamily: 'monospace', fontSize: '13px', color: '#888888', resolution: 2
 		}).setOrigin(1, 0).setDepth(312).setScrollFactor(0).setVisible(false);
 
 		// --- Input ---
@@ -259,27 +292,32 @@ export class Game extends Scene {
 			this.engine.handleKeyDown(event);
 		});
 
+		this.input.keyboard?.on('keyup', (event: KeyboardEvent) => {
+			this.engine.handleKeyUp(event);
+		});
+
 		// Initialize display
 		this.renderText();
 		this.engine.triggerCursorMoved();
 	}
 
 	private updateGameOverCmdLine() {
+		const T = THEMES.minimal;
 		const cmd = this.gameOverCommand;
 		this.gameOverCmdLine.setText(cmd || ':');
 
 		// Color hint based on command
 		if (cmd.startsWith(':w')) {
-			this.gameOverCmdLine.setColor('#a3be8c');
+			this.gameOverCmdLine.setColor(T.phaserSuccess);
 			this.gameOverStatusText.setText(':w <name>  →  save & quit');
 		} else if (cmd.startsWith(':q')) {
-			this.gameOverCmdLine.setColor('#ebcb8b');
+			this.gameOverCmdLine.setColor('#888888');
 			this.gameOverStatusText.setText(':q  →  quit without saving');
 		} else if (cmd.length > 0) {
-			this.gameOverCmdLine.setColor('#bf616a');
+			this.gameOverCmdLine.setColor(T.phaserDanger);
 			this.gameOverStatusText.setText('unknown command');
 		} else {
-			this.gameOverCmdLine.setColor('#d8dee9');
+			this.gameOverCmdLine.setColor('#f0f0f0');
 			this.gameOverStatusText.setText(':w <name>  save   |   :q  quit');
 		}
 
@@ -321,27 +359,70 @@ export class Game extends Scene {
 
 	// ---- Text rendering ----
 	private renderText(): void {
+		const T = THEMES.minimal;
+
 		// Clean up deleted lines
-		for (const [rowIndex, textObj] of this.rowTexts.entries()) {
+		for (const [rowIndex, textObj] of this.rowTextsBg.entries()) {
 			if (rowIndex >= this.engine.lines.length) {
 				textObj.destroy();
-				this.rowTexts.delete(rowIndex);
+				this.rowTextsBg.delete(rowIndex);
+				const fg = this.rowTextsFg.get(rowIndex);
+				if (fg) {
+					fg.destroy();
+					this.rowTextsFg.delete(rowIndex);
+				}
 			}
 		}
+		const cam = this.cameras.main;
+		const gameAreaWidth = cam.width - this.gameAreaStartX - 320;
+		const visibleCols = Math.floor(gameAreaWidth / this.fontWidth);
+		const startCol = Math.max(0, this.firstVisibleCol - 5);
+		const endCol = startCol + visibleCols + 10;
 
 		for (let r = 0; r < this.engine.lines.length; r++) {
 			const line = this.engine.lines[r] ?? '';
-			let t = this.rowTexts.get(r);
-			if (!t) {
-				t = this.add.text(this.gameAreaStartX, r * FONT_HEIGHT, line, {
-					fontFamily: '"Press Start 2P", monospace', fontSize: `${FONT_HEIGHT}px`, color: '#d8dee9', resolution: 3,
-				});
-				t.setOrigin(0, 0);
-				this.rowTexts.set(r, t);
-			} else {
-				if (t.text !== line) {
-					t.setText(line);
+			let bgString = '';
+			let fgString = '';
+
+			const maxC = Math.min(line.length, endCol);
+			for (let c = startCol; c < maxC; c++) {
+				if (line[c] === ' ') {
+					bgString += ' ';
+					fgString += ' ';
+				} else if (this.engine.isBackground(r, c)) {
+					bgString += line[c];
+					fgString += ' ';
+				} else {
+					bgString += ' ';
+					fgString += line[c];
 				}
+			}
+
+			const xPos = this.gameAreaStartX + startCol * this.fontWidth;
+
+			let tBg = this.rowTextsBg.get(r);
+			if (!tBg) {
+				tBg = this.add.text(xPos, r * FONT_HEIGHT, bgString, {
+					fontFamily: '"Press Start 2P", monospace', fontSize: `${FONT_HEIGHT}px`, color: T.textMuted, resolution: 3,
+				});
+				tBg.setOrigin(0, 0);
+				tBg.setAlpha(0.35);
+				this.rowTextsBg.set(r, tBg);
+			} else {
+				if (tBg.text !== bgString) tBg.setText(bgString);
+				if (tBg.x !== xPos) tBg.setX(xPos);
+			}
+
+			let tFg = this.rowTextsFg.get(r);
+			if (!tFg) {
+				tFg = this.add.text(xPos, r * FONT_HEIGHT, fgString, {
+					fontFamily: '"Press Start 2P", monospace', fontSize: `${FONT_HEIGHT}px`, color: T.phaserText, resolution: 3,
+				});
+				tFg.setOrigin(0, 0);
+				this.rowTextsFg.set(r, tFg);
+			} else {
+				if (tFg.text !== fgString) tFg.setText(fgString);
+				if (tFg.x !== xPos) tFg.setX(xPos);
 			}
 		}
 	}
@@ -382,6 +463,16 @@ export class Game extends Scene {
 			this.firstVisibleCol = Math.max(0, this.engine.cursorCol - visibleCols + SCROLLOFF_COLS + 1);
 
 		cam.setScroll(this.firstVisibleCol * this.fontWidth, this.firstVisibleRow * FONT_HEIGHT);
+
+		// Ensure background text exists anywhere the camera goes
+		this.backgroundSystem.ensureVisiblePopulated(
+			this.firstVisibleRow,
+			this.firstVisibleRow + visibleRows + 10,
+			this.firstVisibleCol + visibleCols + 200
+		);
+
+		// Always update text slice after scrolling
+		this.renderText();
 	}
 
 	// ---- Gutter line numbers ----
@@ -420,6 +511,7 @@ export class Game extends Scene {
 
 	// ---- Game over ----
 	private async showGameOver(): Promise<void> {
+		const T = THEMES.minimal;
 		const cam = this.cameras.main;
 		const w = cam.width;
 		const h = cam.height;
@@ -445,18 +537,18 @@ export class Game extends Scene {
 			panelX, panelY
 		];
 		const gfx = this.add.graphics().setDepth(D + 1).setScrollFactor(0);
-		gfx.lineStyle(1, 0xbf616a, 1);
+		gfx.lineStyle(1, T.phaserSuccessNum, 0.4);
 		gfx.strokePoints(borderPts.reduce((acc, v, i) => {
 			if (i % 2 === 0) acc.push({ x: v, y: borderPts[i + 1] });
 			return acc;
 		}, [] as { x: number; y: number }[]), true);
 
 		// ── Title bar ─────────────────────────────────────────────────────
-		this.add.rectangle(panelX, panelY, panelW, 36, 0xbf616a)
+		this.add.rectangle(panelX, panelY, panelW, 36, T.phaserSuccessNum)
 			.setOrigin(0, 0).setDepth(D + 1).setScrollFactor(0);
 		this.add.text(panelX + panelW / 2, panelY + 18,
-			'[KERNEL PANIC] vim-arena crashed — core dumped',
-			{ fontFamily: 'monospace', fontSize: '13px', color: '#0d1117', fontStyle: 'bold', resolution: 2 }
+			'GAME OVER',
+			{ fontFamily: 'monospace', fontSize: '13px', color: '#000000', fontStyle: 'bold', resolution: 2 }
 		).setOrigin(0.5, 0.5).setDepth(D + 2).setScrollFactor(0);
 
 		// ── Body content ──────────────────────────────────────────────────
@@ -468,12 +560,12 @@ export class Game extends Scene {
 		// Score banner
 		this.add.text(panelX + panelW / 2, cy,
 			`${this.gameState.kills} KILLS`,
-			{ fontFamily: '"Press Start 2P", monospace', fontSize: '28px', color: '#bf616a', resolution: 3 }
+			{ fontFamily: '"Press Start 2P", monospace', fontSize: '28px', color: T.phaserText, resolution: 3 }
 		).setOrigin(0.5, 0).setDepth(D + 2).setScrollFactor(0);
 		cy += 44;
 
 		this.add.text(panelX + panelW / 2, cy, 'session terminated',
-			{ ...monoSm, color: '#4c566a' }
+			{ ...monoSm, color: '#888888' }
 		).setOrigin(0.5, 0).setDepth(D + 2).setScrollFactor(0);
 		cy += 28;
 
@@ -610,6 +702,7 @@ export class Game extends Scene {
 
 	// ---- Clipboard UI ----
 	private updateClipboardUI(): void {
+		const T = THEMES.minimal;
 		const clipboard = this.towerSystem.clipboard;
 		const cam = this.cameras.main;
 		const clipboardPanelWidth = 320;
@@ -642,7 +735,7 @@ export class Game extends Scene {
 				// Header (Press Start 2P font)
 				const nameText = this.add.text(clipboardX + 20, y,
 					`[${i + 1}p] ${entry.towerType.name}${statStr}`,
-					{ fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: '#88c0d0' }
+					{ fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: T.phaserTextDim }
 				);
 				nameText.setOrigin(0, 0).setScrollFactor(0).setDepth(42);
 				this.clipboardEntries.push(nameText);
@@ -651,7 +744,7 @@ export class Game extends Scene {
 				const pLines = entry.towerType.pattern;
 				for (let r = 0; r < pLines.length; r++) {
 					const lineText = this.add.text(clipboardX + 20, y + 20 + (r * 10), pLines[r], {
-						fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: '#d8dee9'
+						fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: '#ffffff'
 					});
 					lineText.setOrigin(0, 0).setScrollFactor(0).setDepth(42);
 					this.clipboardEntries.push(lineText);

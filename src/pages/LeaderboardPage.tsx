@@ -31,7 +31,7 @@ function highlight(text: string, query: string) {
     return (
         <>
             {text.slice(0, idx)}
-            <span style={{ background: '#ebcb8b33', color: '#ebcb8b', borderRadius: '2px', padding: '0 2px' }}>
+            <span style={{ background: 'var(--visual)', color: 'var(--yellow)', borderRadius: '1px', padding: '0 2px' }}>
                 {text.slice(idx, idx + query.length)}
             </span>
             {text.slice(idx + query.length)}
@@ -39,27 +39,22 @@ function highlight(text: string, query: string) {
     );
 }
 
-const MEDALS = ['🥇', '🥈', '🥉'];
-
-
+const RANK_MARKERS = ['★', '◆', '◇'];
 
 export default function LeaderboardPage() {
     const navigate       = useNavigate();
     const { user, logout } = useAuth();
-    const handleLogout = () => { logout(); navigate('/', { replace: true }); };
     const [scores, setScores]     = useState<ScoreEntry[]>([]);
     const [loading, setLoading]   = useState(true);
     const [commandBuffer, setCommandBuffer] = useState('');
+    const [vimMode, setVimMode] = useState<'NORMAL' | 'COMMAND' | 'SEARCH'>('NORMAL');
 
-    // Keep a ref so the single stable listener always reads the latest value
     const cmdRef = useRef(commandBuffer);
     cmdRef.current = commandBuffer;
 
-    // Derived state — are we in search mode?
     const isSearch    = commandBuffer.startsWith('/');
     const searchQuery = isSearch ? commandBuffer.slice(1) : '';
 
-    // Filter scores by search query (against playerName)
     const displayedScores = useMemo(() => {
         if (!searchQuery) return scores;
         return scores.filter(s =>
@@ -67,11 +62,10 @@ export default function LeaderboardPage() {
         );
     }, [scores, searchQuery]);
 
-    // Figure out status hint for the command bar
     const cmdHint = useMemo(() => {
-        if (isSearch) return `searching "${searchQuery}" · ${displayedScores.length} result${displayedScores.length !== 1 ? 's' : ''}`;
-        if (commandBuffer.startsWith(':p')) return ':play → Enter Arena';
-        if (commandBuffer.startsWith(':d') || commandBuffer.startsWith(':q')) return ':db / :q → Dashboard';
+        if (isSearch) return `FIND: "${searchQuery}" [${displayedScores.length}]`;
+        if (commandBuffer.startsWith(':p')) return 'PLAY \u2192 START';
+        if (commandBuffer.startsWith(':d') || commandBuffer.startsWith(':q')) return 'BACK \u2192 DASHBOARD';
         return '';
     }, [commandBuffer, isSearch, searchQuery, displayedScores.length]);
 
@@ -80,27 +74,33 @@ export default function LeaderboardPage() {
             const cur = cmdRef.current;
             const curIsSearch = cur.startsWith('/');
 
-            if (e.key === 'Escape') { setCommandBuffer(''); return; }
+            if (e.key === 'Escape') { 
+                setCommandBuffer(''); 
+                setVimMode('NORMAL');
+                return; 
+            }
 
             if (e.key === 'Enter') {
-                if (curIsSearch) return; // keep filter active on Enter
+                if (curIsSearch) return;
                 const cmd = cur.trim().toLowerCase();
                 if (cmd === ':play') navigate('/play');
                 else if (cmd === ':db' || cmd === ':dashboard' || cmd === ':q') navigate('/dashboard');
                 setCommandBuffer('');
+                setVimMode('NORMAL');
                 return;
             }
 
             if (e.key === 'Backspace') {
-                e.preventDefault();
                 setCommandBuffer(p => p.slice(0, -1));
+                if (cur.length <= 1) setVimMode('NORMAL');
                 return;
             }
 
             if (e.key.length === 1) {
-                if (e.key === '/') e.preventDefault(); // block browser Quick Find
+                if (e.key === '/') e.preventDefault();
                 if (cur === '' && (e.key === '/' || e.key === ':')) {
                     setCommandBuffer(e.key);
+                    setVimMode(e.key === '/' ? 'SEARCH' : 'COMMAND');
                 } else if (cur.length > 0) {
                     setCommandBuffer(p => p + e.key);
                 }
@@ -121,134 +121,134 @@ export default function LeaderboardPage() {
         ? (user.name === 'Guest' ? 'GUEST' : user.name.substring(0, 10).toUpperCase())
         : '';
 
-    // Global rank of a score entry (position in original full list)
     const rankOf = (entry: ScoreEntry) => scores.indexOf(entry);
 
     return (
         <VimLayout
             gutterLines={Math.max(40, displayedScores.length + 6)}
-            vimMode={isSearch ? 'SEARCH' : 'NORMAL'}
+            vimMode={vimMode}
             commandBuffer={commandBuffer}
             cmdHint={cmdHint}
             filename="leaderboard.vim [RO]"
-            statusShortcuts={`${displayedScores.length}/${scores.length} entries`}
+            statusShortcuts={`${displayedScores.length} records`}
             gutterLineHeight={28}
             bodyAlignItems="stretch"
         >
-                        <NavBar activePage="leaderboard" />
-                        {/* Header */}
-                        <div style={{ padding: '32px 40px 0' }}>
-                            <div style={{ fontFamily: '"Press Start 2P", monospace', fontSize: '20px', color: '#eceff4', letterSpacing: '3px', marginBottom: '8px' }}>
-                                LEADERBOARD
-                            </div>
-                            <div style={{ fontSize: '13px', color: '#4c566a', marginBottom: '8px' }}>
-                                Top players sorted by highest kill count
-                            </div>
-
-                            {/* Command reference strip */}
-                            <div style={{ display: 'flex', gap: '24px', fontSize: '11px', color: '#3b4252', marginBottom: '24px', fontFamily: 'monospace' }}>
-                                <span><span style={{ color: '#ebcb8b' }}>/name</span>  search player</span>
-                                <span><span style={{ color: '#88c0d0' }}>:play</span>  start game</span>
-                                <span><span style={{ color: '#4c566a' }}>:db</span>    dashboard</span>
-                                <span><span style={{ color: '#4c566a' }}>Esc</span>    clear</span>
-                            </div>
+            <NavBar activePage="leaderboard" />
+            
+            <div style={{ padding: '60px 40px', maxWidth: '1000px', margin: '0 auto', width: '100%' }}>
+                
+                {/* Header Section */}
+                <div style={{ marginBottom: '48px' }}>
+                    <h1 style={{ fontFamily: '"Press Start 2P", monospace', fontSize: '24px', color: 'var(--text)', letterSpacing: '4px', marginBottom: '12px' }}>
+                        RANKINGS
+                    </h1>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <p style={{ fontSize: '11px', color: 'var(--text-dim)', letterSpacing: '1px' }}>
+                            TOP PERFORMANCE RECORDS
+                        </p>
+                        <div style={{ display: 'flex', gap: '24px', fontSize: '10px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                            <span>/ SEARCH</span>
+                            <span>: PLAY</span>
+                            <span>: EXIT</span>
                         </div>
+                    </div>
+                </div>
 
-                        {/* Table */}
-                        <div style={{ padding: '0 40px 60px', flex: 1 }}>
-                            {loading ? (
-                                <div style={{ color: '#4c566a', fontSize: '13px', animation: 'pulse 1.5s ease infinite' }}>
-                                    Loading scores...
-                                </div>
-                            ) : displayedScores.length === 0 ? (
-                                <div style={{ color: '#3b4252', fontSize: '13px', fontStyle: 'italic' }}>
-                                    {searchQuery
-                                        ? `No players matching "${searchQuery}"`
-                                        : 'No scores yet. Be the first to play!'}
-                                </div>
-                            ) : (
-                                <>
-                                    {/* Column headers */}
-                                    <div style={{
-                                        display: 'grid',
-                                        gridTemplateColumns: '56px 1fr 90px 90px',
-                                        gap: '0 16px',
-                                        padding: '0 12px 8px',
-                                        borderBottom: '1px solid #1e2030',
-                                        fontSize: '10px',
-                                        letterSpacing: '2px',
-                                        color: '#3b4252',
-                                        textTransform: 'uppercase',
-                                    }}>
-                                        <span>Rank</span>
-                                        <span>Player</span>
-                                        <span style={{ textAlign: 'right' }}>Kills</span>
-                                        <span style={{ textAlign: 'right' }}>When</span>
-                                    </div>
+                {/* Grid */}
+                <div style={{ border: '1px solid var(--border)', background: 'var(--bg-alt)', borderRadius: '2px' }}>
+                    {loading ? (
+                        <div style={{ padding: '40px', color: 'var(--text-dim)', fontSize: '12px' }}>LOADING RECORDS...</div>
+                    ) : displayedScores.length === 0 ? (
+                        <div style={{ padding: '40px', color: 'var(--text-dim)', fontSize: '12px' }}>NO DATA AVAILABLE</div>
+                    ) : (
+                        <div>
+                            {/* Headers */}
+                            <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: '80px 1fr 120px 120px',
+                                gap: '16px',
+                                padding: '20px 32px',
+                                borderBottom: '1px solid var(--border)',
+                                fontSize: '10px',
+                                letterSpacing: '2px',
+                                color: 'var(--text-muted)',
+                                textTransform: 'uppercase'
+                            }}>
+                                <span>RANK</span>
+                                <span>OPERATOR</span>
+                                <span style={{ textAlign: 'right' }}>KILLS</span>
+                                <span style={{ textAlign: 'right' }}>DATE</span>
+                            </div>
 
-                                    {/* Rows */}
-                                    {displayedScores.map((entry) => {
-                                        const i     = rankOf(entry); // global rank
-                                        const isMe  = entry.playerName === myName;
-                                        const isTop = i < 3;
+                            {/* Rows */}
+                            <div style={{ maxHeight: 'calc(100vh - 400px)', overflowY: 'auto' }}>
+                                {displayedScores.map((entry) => {
+                                    const i = rankOf(entry);
+                                    const isMe = entry.playerName === myName;
+                                    const isTop = i < 3;
 
-                                        return (
-                                            <div
-                                                key={entry._id}
-                                                style={{
-                                                    display: 'grid',
-                                                    gridTemplateColumns: '56px 1fr 90px 90px',
-                                                    gap: '0 16px',
-                                                    alignItems: 'center',
-                                                    padding: '12px',
-                                                    borderBottom: '1px solid #13151a',
-                                                    background: isMe ? 'rgba(136,192,208,0.05)' : 'transparent',
-                                                    borderLeft: isMe ? '2px solid #88c0d0' : '2px solid transparent',
-                                                    transition: 'background 0.1s',
-                                                }}
-                                                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.02)')}
-                                                onMouseLeave={e => (e.currentTarget.style.background = isMe ? 'rgba(136,192,208,0.05)' : 'transparent')}
-                                            >
-                                                {/* Rank */}
-                                                <span style={{ fontSize: i < 3 ? '16px' : '13px', textAlign: 'center', color: '#3b4252', fontFamily: 'monospace' }}>
-                                                    {MEDALS[i] ?? `${i + 1}`}
-                                                </span>
+                                    return (
+                                        <div
+                                            key={entry._id}
+                                            style={{
+                                                display: 'grid',
+                                                gridTemplateColumns: '80px 1fr 120px 120px',
+                                                gap: '16px',
+                                                alignItems: 'center',
+                                                padding: '16px 32px',
+                                                borderBottom: '1px solid var(--border)',
+                                                background: isMe ? 'rgba(255,255,255,0.02)' : 'transparent',
+                                                transition: 'all 0.2s ease'
+                                            }}
+                                        >
+                                            <span style={{ 
+                                                fontSize: isTop ? '14px' : '12px', 
+                                                color: isTop ? 'var(--yellow)' : 'var(--text-muted)',
+                                                fontFamily: 'monospace'
+                                            }}>
+                                                {RANK_MARKERS[i] ?? (i + 1).toString().padStart(2, '0')}
+                                            </span>
 
-                                                {/* Player */}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                                                 <span style={{
                                                     fontFamily: 'monospace',
                                                     fontSize: '14px',
-                                                    color: isTop ? '#eceff4' : '#d8dee9',
-                                                    fontWeight: isMe || isTop ? 'bold' : 'normal',
+                                                    color: isMe ? 'var(--text)' : 'var(--text-dim)',
                                                 }}>
                                                     {highlight(entry.playerName, searchQuery)}
-                                                    {isMe && (
-                                                        <span style={{ fontSize: '10px', color: '#88c0d0', marginLeft: '8px', fontWeight: 'normal' }}>you</span>
-                                                    )}
                                                 </span>
-
-                                                {/* Score */}
-                                                <span style={{
-                                                    fontFamily: '"Press Start 2P", monospace',
-                                                    fontSize: '11px',
-                                                    color: i === 0 ? '#ebcb8b' : i < 3 ? '#a3be8c' : '#4c566a',
-                                                    textAlign: 'right',
-                                                }}>
-                                                    {entry.score}
-                                                </span>
-
-                                                {/* Time ago */}
-                                                <span style={{ fontSize: '11px', color: '#3b4252', textAlign: 'right', fontFamily: 'monospace' }}>
-                                                    {timeAgo(entry.date)}
-                                                </span>
+                                                {isMe && (
+                                                    <span style={{ 
+                                                        fontSize: '9px', 
+                                                        color: 'var(--yellow)', 
+                                                        border: '1px solid var(--yellow)', 
+                                                        padding: '1px 4px',
+                                                        borderRadius: '1px'
+                                                    }}>YOU</span>
+                                                )}
                                             </div>
-                                        );
-                                    })}
-                                </>
-                            )}
+
+                                            <span style={{
+                                                fontFamily: '"Press Start 2P", monospace',
+                                                fontSize: '11px',
+                                                color: isTop ? 'var(--yellow)' : 'var(--text)',
+                                                textAlign: 'right',
+                                            }}>
+                                                {entry.score}
+                                            </span>
+
+                                            <span style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'right', fontFamily: 'monospace' }}>
+                                                {timeAgo(entry.date)}
+                                            </span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
-
-
+                    )}
+                </div>
+            </div>
         </VimLayout>
     );
 }

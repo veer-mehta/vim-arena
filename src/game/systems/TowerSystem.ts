@@ -1,15 +1,14 @@
 import { Scene } from 'phaser';
 import { Tower } from '../entities/Tower';
-import { TOWER_TYPES } from '../entities/TowerTypes';
+import { TowerType, TOWER_TYPES } from '../entities/TowerTypes';
 import { VimEngine } from '../vim/VimEngine';
 import { ClipboardSystem } from './ClipboardSystem';
 import { GameState } from '../GameState';
 
-// Initial predefined tower placements
-const INITIAL_TOWERS: Array<{row: number, type: string}> = [
-    {row: 5, type: 'sniper'},
-    {row: 15, type: 'pulse'},
-    {row: 25, type: 'rapid'},
+const INITIAL_TOWERS: Array<{ row: number; type: string }> = [
+    { row: 5,  type: 'sniper' },
+    { row: 15, type: 'pulse'  },
+    { row: 25, type: 'rapid'  },
 ];
 
 export class TowerSystem {
@@ -21,8 +20,11 @@ export class TowerSystem {
     private readonly fontHeight: number;
     private readonly clipboardSystem: ClipboardSystem;
     private readonly centerCol: number;
+
     private towers: Map<string, Tower> = new Map();
-    private towerPatterns: Map<string, {type: string, startCol: number, startRow: number}> = new Map();
+    private towerPatterns: Map<string, { type: string; startCol: number; startRow: number }> = new Map();
+    // Custom tower types created by paste — kept separate to avoid polluting TOWER_TYPES
+    private dynamicTowerTypes: Map<string, TowerType> = new Map();
 
     public onTowerCreated?: (name: string, col: number, row: number) => void;
     public onTowerDestroyed?: (col: number, row: number, name?: string) => void;
@@ -37,187 +39,141 @@ export class TowerSystem {
         this.fontHeight = fontHeight;
         this.centerCol = centerCol;
         this.clipboardSystem = new ClipboardSystem(gameState);
-        this.vim.onPaste = (row: number, col: number, index: number) => this.handlePaste(row, col, index);
-        this.vim.onYank = (pattern: string[]) => {
-            if (this.clipboardSystem.yankPattern(pattern)) {
-                // If yank was successful, maybe play a sound or trigger a render, but Game.updateClipboardUI does it automatically.
-            }
-        };
+        this.vim.onPaste = (row, col, index) => this.handlePaste(row, col, index);
+        this.vim.onYank = (pattern) => this.clipboardSystem.yankPattern(pattern);
         this.placeInitialTowers();
     }
 
+    private writePatternToBuffer(startCol: number, startRow: number, pattern: string[]): void {
+        for (let i = 0; i < pattern.length; i++) {
+            const lineIndex = startRow + i;
+            while (this.vim.lines.length <= lineIndex) this.vim.lines.push('');
+            const line = this.vim.lines[lineIndex].padEnd(startCol + pattern[i].length, ' ');
+            this.vim.lines[lineIndex] = line.slice(0, startCol) + pattern[i] + line.slice(startCol + pattern[i].length);
+            for (let c = 0; c < pattern[i].length; c++) {
+                this.vim.backgroundCells.delete(`${lineIndex},${startCol + c}`);
+            }
+        }
+    }
+
     private placeInitialTowers(): void {
-        for (const initial of INITIAL_TOWERS) {
-            const towerType = TOWER_TYPES[initial.type];
+        for (const { row, type } of INITIAL_TOWERS) {
+            const towerType = TOWER_TYPES[type];
             if (!towerType) continue;
-            
-            // Ensure the line exists
-            while (this.vim.lines.length <= initial.row) {
-                this.vim.lines.push('');
-            }
-            
-            // Place the tower pattern
-            const startCol = this.centerCol; // Dynamic center position
-            for (let i = 0; i < towerType.pattern.length; i++) {
-                const patternLine = towerType.pattern[i];
-                const lineIndex = initial.row + i;
-                
-                while (this.vim.lines.length <= lineIndex) {
-                    this.vim.lines.push('');
-                }
-                
-                const line = this.vim.lines[lineIndex];
-                const newLine = line.padEnd(startCol + patternLine.length, ' ');
-                this.vim.lines[lineIndex] = newLine.slice(0, startCol) + patternLine + newLine.slice(startCol + patternLine.length);
-            }
-            
-            // Store pattern info once for the entire tower
-            this.towerPatterns.set(`${startCol},${initial.row}`, {type: initial.type, startCol, startRow: initial.row});
+            while (this.vim.lines.length <= row) this.vim.lines.push('');
+            this.writePatternToBuffer(this.centerCol, row, towerType.pattern);
+            this.towerPatterns.set(`${this.centerCol},${row}`, { type, startCol: this.centerCol, startRow: row });
         }
         this.scanAll();
-        const shootingTowers = this.activeTowers.filter(t => !t.type.isWall && t.type.damage > 0);
-        this.gameState.setTowerCount(shootingTowers.length);
+        this.gameState.setTowerCount(this.countShootingTowers());
     }
 
     private handlePaste(row: number, col: number, index: number): void {
         const clipboard = this.clipboardSystem.getClipboard();
-        if (clipboard.length === 0) return;
-        
+        if (!clipboard.length) return;
         const entryIndex = Math.min(index, clipboard.length - 1);
-        const entry = clipboard[entryIndex];
+        if (!this.clipboardSystem.useEntry(entryIndex)) return;
 
-        if (!this.clipboardSystem.useEntry(entryIndex)) {
-            // Not enough energy to paste
-            return;
-        }
+        const { towerType } = clipboard[entryIndex];
+        this.writePatternToBuffer(col, row, towerType.pattern);
 
-        const towerType = entry.towerType;
-        
-        // Write pattern to vim.lines
-        for (let i = 0; i < towerType.pattern.length; i++) {
-            const patternLine = towerType.pattern[i];
-            const lineIndex = row + i;
-            
-            while (this.vim.lines.length <= lineIndex) {
-                this.vim.lines.push('');
-            }
-            
-            const line = this.vim.lines[lineIndex];
-            const newLine = line.padEnd(col + patternLine.length, ' ');
-            this.vim.lines[lineIndex] = newLine.slice(0, col) + patternLine + newLine.slice(col + patternLine.length);
+        let towerId = Object.keys(TOWER_TYPES).find(k => TOWER_TYPES[k].name === towerType.name);
+        if (!towerId) {
+            towerId = `dynamic_${col}_${row}_${Date.now()}`;
+            this.dynamicTowerTypes.set(towerId, towerType);
         }
-
-        // Register finding once for the entire structure
-        let towerId = Object.keys(TOWER_TYPES).find(key => TOWER_TYPES[key].name === towerType.name);
-        if (!towerId && towerType.isWall) {
-            towerId = 'wall_' + Math.random().toString(36).substr(2, 9);
-            TOWER_TYPES[towerId] = towerType;
-        }
-        this.towerPatterns.set(`${col},${row}`, {type: towerId || 'sniper', startCol: col, startRow: row});
-        
-        // Trigger generic render
-        if (this.vim.onRenderAll) {
-            this.vim.onRenderAll();
-        }
-        
+        this.towerPatterns.set(`${col},${row}`, { type: towerId, startCol: col, startRow: row });
+        this.vim.onRenderAll?.();
         this.scanAll();
     }
 
-    get clipboard(): ClipboardSystem {
-        return this.clipboardSystem;
-    }
+    get clipboard(): ClipboardSystem { return this.clipboardSystem; }
 
     get activeTowers(): Tower[] {
         return Array.from(this.towers.values()).filter(t => !t.isDead);
     }
 
+    private getTowerTypeById(typeId: string): TowerType | undefined {
+        return TOWER_TYPES[typeId] ?? this.dynamicTowerTypes.get(typeId);
+    }
+
+    /** Returns true if the buffer cell (col, row) is part of any live tower's pattern. */
+    public isPartOfTower(col: number, row: number): boolean {
+        for (const [key, info] of this.towerPatterns.entries()) {
+            const tower = this.towers.get(key);
+            if (!tower || tower.isDead) continue;
+            const type = this.getTowerTypeById(info.type);
+            if (!type) continue;
+            if (row < info.startRow || row >= info.startRow + type.pattern.length) continue;
+            const patRow = row - info.startRow;
+            if (col >= info.startCol && col < info.startCol + type.pattern[patRow].length) return true;
+        }
+        return false;
+    }
+
+    private countShootingTowers(): number {
+        return Array.from(this.towers.values()).filter(t => !t.isDead && !t.type.isWall && t.type.damage > 0).length;
+    }
+
     scanRow(row: number): void {
         const lines = this.vim.lines;
-        const beforeCount = this.activeTowers.length;
-        
-        // 1. Clean up existing towers on this row that no longer match their patterns
+        const shootingBefore = this.countShootingTowers();
+
+        // Invalidate towers whose pattern no longer matches the buffer
         for (const [key, tower] of this.towers.entries()) {
-            const patternInfo = this.towerPatterns.get(key);
-            if (patternInfo && row >= patternInfo.startRow && row < patternInfo.startRow + TOWER_TYPES[patternInfo.type].pattern.length) {
-                const towerType = TOWER_TYPES[patternInfo.type];
-                const relRow = row - patternInfo.startRow;
-                const patternLine = towerType.pattern[relRow];
-                const bufferLine = lines[row] || '';
-                
-                let mismatched = false;
-                for (let c = 0; c < patternLine.length; c++) {
-                    if (bufferLine[patternInfo.startCol + c] !== patternLine[c]) {
-                        mismatched = true;
-                        break;
-                    }
-                }
-                
-                if (mismatched) {
-                    const patInfo = this.towerPatterns.get(key);
-                    const tName = patInfo ? (TOWER_TYPES[patInfo.type]?.name ?? patInfo.type) : 'Tower';
-                    this.onTowerDeletedByEdit?.(tName, patternInfo.startCol, patternInfo.startRow);
-                    tower.destroy();
-                    this.towers.delete(key);
-                    this.towerPatterns.delete(key);
-                }
+            const info = this.towerPatterns.get(key);
+            const towerType = info ? this.getTowerTypeById(info.type) : undefined;
+            if (!info || !towerType) continue;
+            if (row < info.startRow || row >= info.startRow + towerType.pattern.length) continue;
+
+            const patternLine = towerType.pattern[row - info.startRow];
+            const bufferLine = lines[row] || '';
+            let mismatch = false;
+            for (let c = 0; c < patternLine.length; c++) {
+                if (bufferLine[info.startCol + c] !== patternLine[c]) { mismatch = true; break; }
+            }
+            if (mismatch) {
+                this.onTowerDeletedByEdit?.(towerType.name ?? info.type, info.startCol, info.startRow);
+                tower.destroy();
+                this.towers.delete(key);
+                this.towerPatterns.delete(key);
+                this.dynamicTowerTypes.delete(info.type);
             }
         }
 
-        // 2. Search for NEW patterns starting on this row
+        // Detect new tower patterns on this row
         const currentLine = lines[row] || '';
         for (const [typeId, towerType] of Object.entries(TOWER_TYPES)) {
             const firstLine = towerType.pattern[0];
-            let startSearch = 0;
-            
+            let search = 0;
             while (true) {
-                const foundCol = currentLine.indexOf(firstLine, startSearch);
+                const foundCol = currentLine.indexOf(firstLine, search);
                 if (foundCol === -1) break;
-                
-                // Potential match found, check other lines
-                let fullMatch = true;
-                for (let r = 1; r < towerType.pattern.length; r++) {
+
+                let match = true;
+                for (let r = 1; r < towerType.pattern.length && match; r++) {
                     const nextLine = lines[row + r] || '';
-                    const expectedPattern = towerType.pattern[r];
-                    
-                    for (let c = 0; c < expectedPattern.length; c++) {
-                        if (nextLine[foundCol + c] !== expectedPattern[c]) {
-                            fullMatch = false;
-                            break;
-                        }
-                    }
-                    if (!fullMatch) break;
-                }
-                
-                if (fullMatch) {
-                    const key = `${foundCol},${row}`;
-                    // Only create if it doesn't exist
-                    if (!this.towers.has(key)) {
-                        const centerCol = foundCol + Math.floor(firstLine.length / 2);
-                        const centerRow = row + Math.floor(towerType.pattern.length / 2);
-                        const wx = this.gutterWidth + centerCol * this.fontWidth + this.fontWidth / 2;
-                        const wy = centerRow * this.fontHeight + this.fontHeight / 2;
-                        
-                        this.towerPatterns.set(key, {type: typeId, startCol: foundCol, startRow: row});
-                        this.towers.set(key, new Tower(
-                            this.scene, 
-                            centerCol, centerRow, 
-                            wx, wy, 
-                            towerType, 
-                            this.fontWidth * firstLine.length, 
-                            this.fontHeight * towerType.pattern.length
-                        ));
-                        this.onTowerCreated?.(towerType.name, foundCol, row);
+                    for (let c = 0; c < towerType.pattern[r].length; c++) {
+                        if (nextLine[foundCol + c] !== towerType.pattern[r][c]) { match = false; break; }
                     }
                 }
-                
-                startSearch = foundCol + 1;
+
+                const key = `${foundCol},${row}`;
+                if (match && !this.towers.has(key)) {
+                    const cCol = foundCol + Math.floor(firstLine.length / 2);
+                    const cRow = row + Math.floor(towerType.pattern.length / 2);
+                    const wx = this.gutterWidth + cCol * this.fontWidth + this.fontWidth / 2;
+                    const wy = cRow * this.fontHeight + this.fontHeight / 2;
+                    this.towerPatterns.set(key, { type: typeId, startCol: foundCol, startRow: row });
+                    this.towers.set(key, new Tower(this.scene, cCol, cRow, wx, wy, towerType, this.fontWidth * firstLine.length, this.fontHeight * towerType.pattern.length));
+                    this.onTowerCreated?.(towerType.name, foundCol, row);
+                }
+                search = foundCol + 1;
             }
         }
-        
-        const afterCount = this.activeTowers.filter(t => !t.type.isWall && t.type.damage > 0).length;
-        if (beforeCount !== afterCount) {
-            this.gameState.setTowerCount(afterCount);
-        }
+
+        const shootingAfter = this.countShootingTowers();
+        if (shootingBefore !== shootingAfter) this.gameState.setTowerCount(shootingAfter);
     }
 
     scanAll(): void {
@@ -225,47 +181,39 @@ export class TowerSystem {
     }
 
     towerTakeDamage(tower: Tower, amount: number): void {
-        const died = tower.takeDamage(amount);
-        if (died) {
-            let actualKey = '';
-            for (const [k, t] of this.towers.entries()) {
-                if (t === tower) { actualKey = k; break; }
-            }
-            if (actualKey) {
-                const patternInfo = this.towerPatterns.get(actualKey);
+        if (!tower.takeDamage(amount)) return;
 
-                // ── Remove from registry FIRST ──────────────────────────────
-                // scanRow is triggered by onRenderRow (called below when we
-                // erase the buffer). If the tower is still registered when
-                // scanRow runs, it detects a pattern mismatch and fires
-                // onTowerDeletedByEdit ("buffer edit by user") — wrong.
-                // Deleting from the maps before touching vim.lines means
-                // scanRow sees no registered tower and stays silent.
-                this.towers.delete(actualKey);
-                this.towerPatterns.delete(actualKey);
+        // Find and remove the tower from registries BEFORE touching vim.lines —
+        // otherwise the onRenderRow callback triggers scanRow which sees a pattern
+        // mismatch and incorrectly fires onTowerDeletedByEdit.
+        let key = '';
+        for (const [k, t] of this.towers.entries()) { if (t === tower) { key = k; break; } }
 
-                // ── Erase pattern from vim buffer ────────────────────────────
-                if (patternInfo) {
-                    const towerType = TOWER_TYPES[patternInfo.type];
-                    if (towerType) {
-                        for (let i = 0; i < towerType.pattern.length; i++) {
-                            const lineIndex = patternInfo.startRow + i;
-                            if (lineIndex < this.vim.lines.length) {
-                                const line = this.vim.lines[lineIndex];
-                                const start = patternInfo.startCol;
-                                const end = start + towerType.pattern[i].length;
-                                this.vim.lines[lineIndex] = line.slice(0, start) + ' '.repeat(end - start) + line.slice(end);
-                                this.vim.onRenderRow?.(lineIndex);
-                            }
+        if (key) {
+            const info = this.towerPatterns.get(key);
+            this.towers.delete(key);
+            this.towerPatterns.delete(key);
+
+            if (info) {
+                const towerType = this.getTowerTypeById(info.type);
+                if (towerType) {
+                    for (let i = 0; i < towerType.pattern.length; i++) {
+                        const li = info.startRow + i;
+                        if (li < this.vim.lines.length) {
+                            const line = this.vim.lines[li];
+                            const end = info.startCol + towerType.pattern[i].length;
+                            this.vim.lines[li] = line.slice(0, info.startCol) + ' '.repeat(end - info.startCol) + line.slice(end);
+                            this.vim.onRenderRow?.(li);
                         }
                     }
                 }
+                this.dynamicTowerTypes.delete(info.type);
             }
-            tower.destroy();
-            const shootingTowers = this.activeTowers.filter(t => !t.type.isWall && t.type.damage > 0);
-            this.gameState.setTowerCount(shootingTowers.length);
-            this.onTowerDestroyed?.(tower.col, tower.row, tower.type.name);
         }
+
+        tower.destroy();
+        this.gameState.setTowerCount(this.countShootingTowers());
+        this.onTowerDestroyed?.(tower.col, tower.row, tower.type.name);
     }
 
     update(delta: number): void {

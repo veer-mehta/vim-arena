@@ -1,5 +1,24 @@
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
+/* ─── Default theme vars (Stealth Mono) ─── */
+:root {
+    --bg:           #0d1117; /* Pitch Black */
+    --bg-alt:       #161b22; /* Gunmetal Deep */
+    --bg-panel:     rgba(13, 17, 23, 0.8);
+    --border:       rgba(255, 255, 255, 0.08);
+    --text:         #ffffff; /* Snow White */
+    --text-dim:     #8b949e; /* Gunmetal Grey */
+    --text-muted:   #484f58; /* Muted Grey */
+    --accent:       #b32d2d; /* Dull Red - Vital */
+    --accent-glow:  rgba(179, 45, 45, 0.2);
+    --yellow:       #e6b800; /* Crisp Yellow - Energy */
+    --danger:       #b32d2d;
+    --success:      #e6b800;
+    --warning:      #e6b800;
+    --cursor:       #ffffff;
+    --visual:       rgba(255, 255, 255, 0.1);
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -10,31 +29,26 @@ html, body, #root {
     width: 100%;
     height: 100%;
     overflow: hidden;
-    background: #16181d;
-    color: #d8dee9;
-    font-family: monospace;
-    scrollbar-color: #3b4252 #16181d;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    scrollbar-color: var(--text-muted) var(--bg);
     scrollbar-width: thin;
 }
 
 /* ─── Scrollbar ─── */
 ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 6px;
+    height: 6px;
 }
 ::-webkit-scrollbar-track {
-    background: #16181d;
-    border-left: 1px solid #232530;
+    background: var(--bg);
 }
 ::-webkit-scrollbar-thumb {
-    background: #3b4252;
-    border-radius: 0;
+    background: var(--text-muted);
 }
 ::-webkit-scrollbar-thumb:hover {
-    background: #4c566a;
-}
-::-webkit-scrollbar-corner {
-    background: #16181d;
+    background: var(--text-dim);
 }
 
 /* ─── Shared Page Shell ─── */
@@ -43,149 +57,56 @@ html, body, #root {
     height: 100vh;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    background: radial-gradient(ellipse at 50% 40%, #1c1e26 0%, #16181d 70%);
+    background: var(--bg);
     position: relative;
     overflow: hidden;
-}
-
-.page::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background:
-        repeating-linear-gradient(
-            0deg,
-            transparent,
-            transparent 2px,
-            rgba(0,255,204,0.015) 2px,
-            rgba(0,255,204,0.015) 4px
-        );
-    pointer-events: none;
-    z-index: 0;
-}
-
-.page > * {
-    position: relative;
-    z-index: 1;
 }
 
 /* ─── Logo ─── */
 .logo {
     font-family: 'Press Start 2P', monospace;
-    font-size: 36px;
-    color: #eceff4;
-    text-shadow: 0 0 20px rgba(236,239,244,0.2);
-    margin-bottom: 8px;
+    color: var(--text);
     letter-spacing: 4px;
 }
 
+/* ─── Utility ─── */
+.vim-comment { color: var(--text-dim); opacity: 0.8; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-style: italic; }
+.vim-string  { color: var(--text); }
+.vim-keyword { color: var(--yellow); }
+.vim-number  { color: var(--yellow); font-weight: bold; }
 
-.lb-title {
-    font-family: 'Press Start 2P', monospace;
-    font-size: 20px;
-    color: #88c0d0;
-    margin-bottom: 32px;
-    text-shadow: 0 0 15px rgba(136,192,208,0.3);
+.glass-card {
+    background: var(--bg-panel);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
 }
 
-.lb-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-family: monospace;
-    font-size: 15px;
+.tactical-border {
+    position: relative;
+    border: 1px solid var(--border);
+    transition: border-color 0.3s ease;
 }
-
-.lb-table thead th {
-    color: #555;
-    font-weight: normal;
-    text-transform: uppercase;
-    font-size: 11px;
-    letter-spacing: 2px;
-    padding: 8px 16px;
-    border-bottom: 1px solid #222;
-    text-align: left;
+.tactical-border::before, .tactical-border::after {
+    content: '';
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    border-color: var(--yellow);
+    border-style: solid;
+    opacity: 0.3;
+    transition: opacity 0.3s ease;
 }
-
-.lb-table thead th:last-child {
-    text-align: right;
+.tactical-border:hover::before, .tactical-border:hover::after {
+    opacity: 1;
 }
-
-.lb-table tbody tr {
-    transition: background 0.15s;
-}
-
-.lb-table tbody tr:hover {
-    background: rgba(0,255,204,0.04);
-}
-
-.lb-table tbody td {
-    padding: 12px 16px;
-    border-bottom: 1px solid #1a1a1a;
-    color: #d4d4d4;
-}
-
-.lb-table tbody td:first-child {
-    color: #555;
-    width: 40px;
-}
-
-.lb-table tbody td:last-child {
-    text-align: right;
-    color: #88c0d0;
-    font-weight: bold;
-}
-
-.lb-table tbody tr:nth-child(1) td:first-child,
-.lb-table tbody tr:nth-child(2) td:first-child,
-.lb-table tbody tr:nth-child(3) td:first-child {
-    color: #ffcc00;
-}
-
-.lb-empty {
-    color: #444;
-    font-size: 14px;
-    margin-top: 32px;
-}
-
-.lb-loading {
-    color: #555;
-    font-size: 14px;
-    margin-top: 32px;
-    animation: pulse 1.5s ease infinite;
-}
+.tactical-border::before { top: -1px; left: -1px; border-width: 1px 0 0 1px; }
+.tactical-border::after { bottom: -1px; right: -1px; border-width: 0 1px 1px 0; }
 
 @keyframes pulse {
     0%, 100% { opacity: 0.4; }
     50%      { opacity: 1; }
-}
-
-/* ─── Dashboard Stats ─── */
-.stats-row {
-    display: flex;
-    gap: 40px;
-    margin-bottom: 48px;
-}
-
-.stat-box {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-}
-
-.stat-value {
-    font-family: 'Press Start 2P', monospace;
-    font-size: 24px;
-    color: #88c0d0;
-}
-
-.stat-label {
-    font-size: 11px;
-    color: #555;
-    letter-spacing: 2px;
-    text-transform: uppercase;
 }
 
 /* ─── Game Container ─── */
@@ -204,7 +125,7 @@ html, body, #root {
     height: 100vh;
     display: flex;
     flex-direction: column;
-    background: #16181d;
+    background: var(--bg);
     position: relative;
 }
 
@@ -215,14 +136,14 @@ html, body, #root {
 }
 
 .vim-gutter {
-    width: 50px;
-    background: #1c1e26;
-    color: #3b4252;
-    font-family: monospace;
+    width: 54px;
+    background: var(--bg-alt);
+    color: var(--text-muted);
+    font-family: 'JetBrains Mono', monospace;
     font-size: 14px;
-    padding: 20px 8px;
+    padding: 24px 12px;
     text-align: right;
-    border-right: 1px solid #232530;
+    border-right: 1px solid var(--border);
     user-select: none;
 }
 
@@ -238,8 +159,8 @@ html, body, #root {
 .vim-statusline {
     display: flex;
     justify-content: space-between;
-    background: #1c1e26;
-    color: #d8dee9;
+    background: var(--bg-alt);
+    color: var(--text);
     font-family: 'Press Start 2P', monospace;
     font-size: 10px;
     padding: 12px 24px;
@@ -249,24 +170,23 @@ html, body, #root {
 }
 
 .vim-commandline {
-    background: #161b22;
-    color: #d8dee9;
+    background: var(--bg-panel);
+    color: var(--text);
     font-family: monospace;
     font-size: 14px;
     padding: 10px 24px;
     display: flex;
     align-items: center;
-    border-top: 1px solid #232530;
+    border-top: 1px solid var(--border);
     z-index: 10;
 }
-
 
 .vim-cursor {
     display: inline-block;
     width: 8px;
     height: 18px;
-    background: #88c0d0;
-    margin-left: 2px;
+    background: var(--cursor);
+    margin-left: 1px;
     animation: blink 1s step-end infinite;
 }
 
@@ -274,10 +194,3 @@ html, body, #root {
     0%, 100% { opacity: 1; }
     50%      { opacity: 0; }
 }
-
-/* ─── Utility ─── */
-.vim-comment { color: #4c566a; font-style: italic; }
-.vim-string { color: #a3be8c; }
-.vim-keyword { color: #81a1c1; }
-.vim-number { color: #b48ead; }
-.vim-special { color: #88c0d0; }

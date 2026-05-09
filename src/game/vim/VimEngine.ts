@@ -7,70 +7,68 @@ export class VimEngine {
 	public mode: VimMode = 'NORMAL';
 	public commandCount: number = 0;
 	public pendingOperator: 'd' | 'y' | 'c' | null = null;
-	public pendingAction: 'r' | 'f' | 'F' | 't' | 'T' | null = null;
-	public visualStart: {col: number, row: number} | null = null;
+	public pendingAction: 'r' | 'f' | 'F' | 't' | 'T' | 'g' | null = null;
+	public visualStart: { col: number; row: number } | null = null;
 	public commandBuffer: string = '';
 
-	// View callbacks
+	// hjkl keys currently held — enables diagonal movement on simultaneous press
+	private pressedMovementKeys: Set<string> = new Set();
+
+	// Cells populated by background word generation (not typed by the player)
+	public backgroundCells: Set<string> = new Set();
+
+	public isBackground(row: number, col: number): boolean {
+		return this.backgroundCells.has(`${row},${col}`);
+	}
+
+	public getViewport?: () => { startCol: number; endCol: number; startRow: number; endRow: number };
 	public onUltimate?: () => void;
 	public onRenderRow?: (row: number) => void;
 	public onRenderAll?: () => void;
 	public onCursorMoved?: () => void;
-	public onStatusUpdate?: (leftStatus: string, rightStatus: string) => void;
+	public onStatusUpdate?: (left: string, right: string) => void;
 	public onPaste?: (row: number, col: number, index: number) => void;
 	public onYank?: (pattern: string[]) => void;
 	public onQuit?: () => void;
 	public onLeaderboard?: () => void;
+	public onCommand?: (cmd: string) => void;
 
-	public handleKeyDown(event: KeyboardEvent) {
+	public handleKeyDown(event: KeyboardEvent): void {
 		if (event.key === 'Escape') {
-			this.setMode('NORMAL');
-			this.commandCount = 0;
+			this.pressedMovementKeys.clear();
 			this.pendingOperator = null;
 			this.pendingAction = null;
+			this.commandCount = 0;
+			this.setMode('NORMAL');
 			this.triggerCursorMoved();
 			return;
 		}
 
-		// Standard Arrow Key Navigation (works in all modes)
-		if (event.key === 'ArrowUp') {
-			this.cursorRow = Math.max(0, this.cursorRow - 1);
-			this.triggerCursorMoved();
-			return;
-		} else if (event.key === 'ArrowDown') {
-			this.cursorRow++;
-			this.triggerCursorMoved();
-			return;
-		} else if (event.key === 'ArrowLeft') {
-			this.cursorCol = Math.max(0, this.cursorCol - 1);
-			this.triggerCursorMoved();
-			return;
-		} else if (event.key === 'ArrowRight') {
-			this.cursorCol++;
-			this.triggerCursorMoved();
-			return;
+		// Arrow keys work in every mode
+		switch (event.key) {
+			case 'ArrowUp':    this.cursorRow = Math.max(0, this.cursorRow - 1); this.triggerCursorMoved(); return;
+			case 'ArrowDown':  if (this.cursorRow >= this.lines.length - 1) this.lines.push(''); this.cursorRow++; this.triggerCursorMoved(); return;
+			case 'ArrowLeft':  this.cursorCol = Math.max(0, this.cursorCol - 1); this.triggerCursorMoved(); return;
+			case 'ArrowRight': this.cursorCol++; this.triggerCursorMoved(); return;
 		}
 
-		if (this.mode === 'INSERT') {
-			this.handleInsertMode(event);
-			return;
-		}
+		if (this.mode === 'INSERT')  { this.handleInsertMode(event);  return; }
+		if (this.mode === 'COMMAND') { this.handleCommandMode(event); return; }
 
-		if (this.mode === 'COMMAND') {
-			this.handleCommandMode(event);
-			return;
+		// NORMAL / VISUAL — track held movement keys for diagonal support
+		if ('hjkl'.includes(event.key) && event.key.length === 1) {
+			this.pressedMovementKeys.add(event.key);
 		}
-
-		if (this.mode === 'NORMAL' || this.mode === 'VISUAL') {
-			this.handleNormalMode(event);
-		}
+		this.handleNormalMode(event);
 	}
 
-	private handleInsertMode(event: KeyboardEvent) {
+	public handleKeyUp(event: KeyboardEvent): void {
+		this.pressedMovementKeys.delete(event.key);
+	}
+
+	private handleInsertMode(event: KeyboardEvent): void {
 		if (event.key === 'Enter') {
 			this.cursorRow++;
-			this.cursorCol = 0;
-			this.triggerCursorMoved();
 		} else if (event.key === 'Backspace') {
 			if (this.cursorCol > 0) {
 				this.deleteText(this.cursorCol - 1, this.cursorRow, 1);
@@ -83,84 +81,99 @@ export class VimEngine {
 		this.triggerCursorMoved();
 	}
 
-	private handleCommandMode(event: KeyboardEvent) {
+	private handleCommandMode(event: KeyboardEvent): void {
 		if (event.key === 'Enter') {
-			if (this.commandBuffer === ':wq') {
-				if (this.onUltimate) this.onUltimate();
-			} else if (this.commandBuffer === ':db') {
-				if (this.onQuit) this.onQuit();
-			} else if (this.commandBuffer === ':lb') {
-				if (this.onLeaderboard) this.onLeaderboard();
-			}
+			if (this.onCommand) this.onCommand(this.commandBuffer);
+
+			if      (this.commandBuffer === ':wq') this.onUltimate?.();
+			else if (this.commandBuffer === ':db')  this.onQuit?.();
+			else if (this.commandBuffer === ':lb')  this.onLeaderboard?.();
+			this.commandBuffer = '';
 			this.setMode('NORMAL');
-			return;
 		} else if (event.key === 'Backspace') {
 			this.commandBuffer = this.commandBuffer.slice(0, -1);
 			if (this.commandBuffer.length === 0) {
 				this.setMode('NORMAL');
+			} else {
+				this.updateStatusBar();
 			}
-			this.updateStatusBar();
-			return;
 		} else if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
 			this.commandBuffer += event.key;
 			this.updateStatusBar();
 		}
 	}
 
-	private handleNormalMode(event: KeyboardEvent) {
+	private handleNormalMode(event: KeyboardEvent): void {
 		const key = event.key;
 
-		// Handle pending action `r` (replace)
 		if (this.pendingAction === 'r') {
 			if (key.length === 1 && !event.ctrlKey) {
-				const count = this.commandCount === 0 ? 1 : this.commandCount;
+				const count = this.commandCount || 1;
 				const limit = Math.min(count, (this.lines[this.cursorRow] || '').length - this.cursorCol);
-				for (let i = 0; i < limit; i++) {
-					this.replaceChar(this.cursorCol + i, this.cursorRow, key);
-				}
+				for (let i = 0; i < limit; i++) this.replaceChar(this.cursorCol + i, this.cursorRow, key);
 			}
-			this.resetState();
+			this.pendingAction = null;
+			this.commandCount = 0;
+			this.updateStatusBar();
 			this.triggerCursorMoved();
 			return;
 		}
 
-		// Handle pending action `f` (find)
-		if (this.pendingAction === 'f') {
+		if (this.pendingAction === 'g') {
+			if (key === 'g') {
+				this.cursorRow = 0;
+				this.cursorCol = 0;
+			}
+			this.pendingAction = null;
+			this.commandCount = 0;
+			this.updateStatusBar();
+			this.triggerCursorMoved();
+			return;
+		}
+
+		if (this.pendingAction && ['f', 'F', 't', 'T'].includes(this.pendingAction)) {
 			if (key.length === 1 && !event.ctrlKey) {
-				const count = this.commandCount === 0 ? 1 : this.commandCount;
-				let foundCount = 0;
-				let line = this.lines[this.cursorRow] || '';
-				for (let i = this.cursorCol + 1; i < line.length; i++) {
-					if (line[i] === key) {
-						foundCount++;
-						if (foundCount === count) {
-							this.cursorCol = i;
+				const count = this.commandCount || 1;
+				let found = 0;
+				const line = this.lines[this.cursorRow] || '';
+				const action = this.pendingAction;
+				if (action === 'f' || action === 't') {
+					for (let i = this.cursorCol + 1; i < line.length; i++) {
+						if (line[i] === key && ++found === count) {
+							this.cursorCol = (action === 'f') ? i : i - 1;
+							break;
+						}
+					}
+				} else {
+					for (let i = this.cursorCol - 1; i >= 0; i--) {
+						if (line[i] === key && ++found === count) {
+							this.cursorCol = (action === 'F') ? i : i + 1;
 							break;
 						}
 					}
 				}
 			}
-			this.resetState();
+			this.pendingAction = null;
+			this.commandCount = 0;
+			this.updateStatusBar();
 			this.triggerCursorMoved();
 			return;
 		}
 
-		// Accrue command counts
+		// Digit: accumulate count, except leading `0` which is the go-to-col-0 motion
 		if (/^[0-9]$/.test(key)) {
 			if (this.commandCount === 0 && key === '0') {
-				// Special motion `0`
 				this.cursorCol = 0;
 				this.updateStatusBar();
 				this.triggerCursorMoved();
-				return;
 			} else {
 				this.commandCount = this.commandCount * 10 + parseInt(key);
 				this.updateStatusBar();
-				return;
 			}
+			return;
 		}
 
-		const count = this.commandCount === 0 ? 1 : this.commandCount;
+		const count = this.commandCount || 1;
 		let clearState = true;
 
 		switch (key) {
@@ -169,94 +182,189 @@ export class VimEngine {
 				this.commandBuffer = ':';
 				clearState = false;
 				break;
+
 			case 'i': this.setMode('INSERT'); break;
-			case 'I':
-				let lineStr = this.lines[this.cursorRow] || '';
-				let firstNonBlank = 0;
-				while (firstNonBlank < lineStr.length && /\s/.test(lineStr[firstNonBlank])) firstNonBlank++;
-				this.cursorCol = firstNonBlank;
-				this.setMode('INSERT');
-				break;
 			case 'v': this.setMode('VISUAL'); break;
-			case 'O':
-				for (let i = 0; i < count; i++) {
-					while (this.lines.length <= this.cursorRow) this.lines.push('');
-					this.lines.splice(this.cursorRow, 0, '');
-				}
-				this.triggerRenderAll();
-				this.cursorCol = 0;
+
+			case 'I': {
+				const line = this.lines[this.cursorRow] || '';
+				let i = 0;
+				while (i < line.length && /\s/.test(line[i])) i++;
+				this.cursorCol = i;
 				this.setMode('INSERT');
 				break;
-			case 'o':
-				for (let i = 0; i < count; i++) {
-					while (this.lines.length <= this.cursorRow) this.lines.push('');
-					this.lines.splice(this.cursorRow + 1, 0, '');
-				}
-				this.triggerRenderAll();
-				this.cursorRow++;
-				this.cursorCol = 0;
-				this.setMode('INSERT');
-				break;
+			}
+
 			case 'a':
 				this.cursorCol++;
 				this.setMode('INSERT');
 				break;
+
 			case 'A':
 				this.cursorCol = (this.lines[this.cursorRow] || '').length;
 				this.setMode('INSERT');
 				break;
-			case 'x':
-				const delCount = Math.min((this.lines[this.cursorRow] || '').length - this.cursorCol, count);
-				if (delCount > 0) this.deleteText(this.cursorCol, this.cursorRow, delCount);
-				break;
-			case 's':
-				const subCount = Math.min((this.lines[this.cursorRow] || '').length - this.cursorCol, count);
-				if (subCount > 0) this.deleteText(this.cursorCol, this.cursorRow, subCount);
+
+			case 'O':
+				this.cursorRow = Math.max(0, this.cursorRow - count);
+				this.cursorCol = 0;
 				this.setMode('INSERT');
 				break;
+
+			case 'o':
+				this.cursorRow += count;
+				while (this.lines.length <= this.cursorRow) this.lines.push('');
+				this.cursorCol = 0;
+				this.setMode('INSERT');
+				break;
+
+			case 'x': {
+				const n = Math.min((this.lines[this.cursorRow] || '').length - this.cursorCol, count);
+				if (n > 0) this.deleteText(this.cursorCol, this.cursorRow, n);
+				break;
+			}
+
+			case 's': {
+				const n = Math.min((this.lines[this.cursorRow] || '').length - this.cursorCol, count);
+				if (n > 0) this.deleteText(this.cursorCol, this.cursorRow, n);
+				this.setMode('INSERT');
+				break;
+			}
+
+			case 'g': this.pendingAction = 'g'; clearState = false; break;
+			
+			case 'G': {
+				let last = this.lines.length - 1;
+				while (last > 0 && this.lines[last].trim() === '') last--;
+				this.cursorRow = Math.max(0, last);
+				this.cursorCol = 0;
+				break;
+			}
+
+			case '^': {
+				const line = this.lines[this.cursorRow] || '';
+				let c = 0;
+				while (c < line.length && line[c] === ' ') c++;
+				this.cursorCol = c;
+				break;
+			}
+
+			case 'D': {
+				const line = this.lines[this.cursorRow] || '';
+				const viewport = this.getViewport ? this.getViewport() : null;
+				let end = line.length;
+				if (viewport) end = Math.min(end, viewport.endCol);
+				if (this.cursorCol < end) {
+					const n = end - this.cursorCol;
+					this.lines[this.cursorRow] = line.slice(0, this.cursorCol) + ' '.repeat(n) + line.slice(end);
+					for (let i = this.cursorCol; i < end; i++) this.backgroundCells.delete(`${this.cursorRow},${i}`);
+					this.onRenderRow?.(this.cursorRow);
+				}
+				break;
+			}
+
+			case 'C': {
+				const line = this.lines[this.cursorRow] || '';
+				const viewport = this.getViewport ? this.getViewport() : null;
+				let end = line.length;
+				if (viewport) end = Math.min(end, viewport.endCol);
+				if (this.cursorCol < end) {
+					const n = end - this.cursorCol;
+					this.lines[this.cursorRow] = line.slice(0, this.cursorCol) + ' '.repeat(n) + line.slice(end);
+					for (let i = this.cursorCol; i < end; i++) this.backgroundCells.delete(`${this.cursorRow},${i}`);
+					this.onRenderRow?.(this.cursorRow);
+				}
+				this.setMode('INSERT');
+				break;
+			}
+
 			case 'r': this.pendingAction = 'r'; clearState = false; break;
 			case 'f': this.pendingAction = 'f'; clearState = false; break;
+			case 'F': this.pendingAction = 'F'; clearState = false; break;
+			case 't': this.pendingAction = 't'; clearState = false; break;
+			case 'T': this.pendingAction = 'T'; clearState = false; break;
+
+			case 'H': {
+				const view = this.getViewport ? this.getViewport() : null;
+				if (view) this.cursorRow = view.startRow;
+				break;
+			}
+			case 'M': {
+				const view = this.getViewport ? this.getViewport() : null;
+				if (view) this.cursorRow = Math.floor((view.startRow + view.endRow) / 2);
+				break;
+			}
+			case 'L': {
+				const view = this.getViewport ? this.getViewport() : null;
+				if (view) this.cursorRow = view.endRow - 1;
+				break;
+			}
+
 			case 'd':
 			case 'c':
-				if (this.pendingOperator === key) {
-					// Linewise operator
-					const countToModify = count === 0 ? 1 : count;
-					for (let i = 0; i < countToModify; i++) {
-						if (this.cursorRow + i < this.lines.length) {
-							this.lines[this.cursorRow + i] = '';
+				if (this.mode === 'VISUAL' && this.visualStart) {
+					const sr = Math.min(this.visualStart.row, this.cursorRow);
+					const er = Math.max(this.visualStart.row, this.cursorRow);
+					const sc = Math.min(this.visualStart.col, this.cursorCol);
+					const ec = Math.max(this.visualStart.col, this.cursorCol);
+					for (let r = sr; r <= er; r++) {
+						const line = this.lines[r] || '';
+						if (sc < line.length) {
+							const n = Math.max(0, Math.min(ec + 1, line.length) - sc);
+							if (n > 0) this.lines[r] = line.slice(0, sc) + ' '.repeat(n) + line.slice(sc + n);
 						}
 					}
-					this.triggerRenderAll();
+					this.onRenderAll?.();
+					this.cursorRow = sr;
+					this.cursorCol = sc;
+					this.setMode(key === 'c' ? 'INSERT' : 'NORMAL');
+				} else if (this.pendingOperator === key) {
+					const viewport = this.getViewport ? this.getViewport() : null;
+					for (let i = 0; i < count; i++) {
+						const row = this.cursorRow + i;
+						if (row < this.lines.length) {
+							if (viewport) {
+								const line = this.lines[row] || '';
+								const start = Math.max(0, viewport.startCol);
+								const end = Math.min(line.length, viewport.endCol);
+								if (end > start) {
+									const n = end - start;
+									this.lines[row] = line.slice(0, start) + ' '.repeat(n) + line.slice(end);
+									for (let c = start; c < end; c++) this.backgroundCells.delete(`${row},${c}`);
+								}
+							} else {
+								this.lines[row] = '';
+							}
+						}
+					}
+					this.onRenderAll?.();
+					if (key === 'c') {
+						this.cursorCol = 0;
+						this.setMode('INSERT');
+					}
 					this.pendingOperator = null;
 					this.commandCount = 0;
-					clearState = false; // logic resolved
+					clearState = false;
 				} else {
 					this.pendingOperator = key;
 					clearState = false;
 				}
 				break;
+
 			case 'y':
 				if (this.mode === 'VISUAL' && this.visualStart) {
-					const startRow = Math.min(this.visualStart.row, this.cursorRow);
-					const endRow = Math.max(this.visualStart.row, this.cursorRow);
-					const startCol = Math.min(this.visualStart.col, this.cursorCol);
-					const endCol = Math.max(this.visualStart.col, this.cursorCol);
-					
+					const sr = Math.min(this.visualStart.row, this.cursorRow);
+					const er = Math.max(this.visualStart.row, this.cursorRow);
+					const sc = Math.min(this.visualStart.col, this.cursorCol);
+					const ec = Math.max(this.visualStart.col, this.cursorCol);
 					const pattern: string[] = [];
-					for (let r = startRow; r <= endRow; r++) {
-						let line = this.lines[r] || '';
-						if (line.length < endCol + 1) line = line.padEnd(endCol + 1, ' ');
-						pattern.push(line.slice(startCol, endCol + 1));
+					for (let r = sr; r <= er; r++) {
+						const line = (this.lines[r] || '').padEnd(ec + 1, ' ');
+						pattern.push(line.slice(sc, ec + 1));
 					}
-					
-					if (this.onYank) {
-						this.onYank(pattern);
-					}
-					
+					this.onYank?.(pattern);
 					this.setMode('NORMAL');
-					clearState = true;
 				} else if (this.pendingOperator === key) {
-					// Linewise operator (we don't strictly implement clipboard text yet)
 					this.pendingOperator = null;
 					this.commandCount = 0;
 					clearState = false;
@@ -265,13 +373,11 @@ export class VimEngine {
 					clearState = false;
 				}
 				break;
+
 			case 'p':
-				if (this.onPaste) {
-					this.onPaste(this.cursorRow, this.cursorCol, this.commandCount === 0 ? 0 : this.commandCount - 1);
-				}
-				this.commandCount = 0;
-				clearState = false;
+				this.onPaste?.(this.cursorRow, this.cursorCol, Math.max(0, this.commandCount - 1));
 				break;
+
 			case 'h':
 			case 'j':
 			case 'k':
@@ -279,53 +385,118 @@ export class VimEngine {
 			case 'w':
 			case 'b':
 			case 'e':
-			case '$':
-			case '0':
-				// Motions
+			case '$': {
+				const startCol = this.cursorCol;
+				const startRow = this.cursorRow;
+
 				for (let i = 0; i < count; i++) {
-					if (key === 'h') this.cursorCol = Math.max(0, this.cursorCol - 1);
-					else if (key === 'j') this.cursorRow++;
-					else if (key === 'k') this.cursorRow = Math.max(0, this.cursorRow - 1);
-					else if (key === 'l') this.cursorCol++;
-					else if (key === 'w') this.moveForwardWord();
+					if ('hjkl'.includes(key)) {
+						if (this.pressedMovementKeys.has('h')) this.cursorCol = Math.max(0, this.cursorCol - 1);
+						if (this.pressedMovementKeys.has('l')) this.cursorCol++;
+						if (this.pressedMovementKeys.has('k')) this.cursorRow = Math.max(0, this.cursorRow - 1);
+						if (this.pressedMovementKeys.has('j')) {
+							if (this.cursorRow >= this.lines.length - 1) this.lines.push('');
+							this.cursorRow++;
+						}
+					} else if (key === 'w') this.moveForwardWord();
 					else if (key === 'b') this.moveBackwardWord();
 					else if (key === 'e') this.moveEndWord();
-					else if (key === '$') this.cursorCol = Math.max(0, (this.lines[this.cursorRow] || '').length - 1);
-					else if (key === '0') this.cursorCol = 0;
+					else if (key === '$') {
+						const viewport = this.getViewport ? this.getViewport() : null;
+						let end = (this.lines[this.cursorRow] || '').length - 1;
+						if (viewport) end = Math.min(end, Math.max(0, viewport.endCol - 1));
+						this.cursorCol = Math.max(0, end);
+					}
 				}
 
-				if (this.pendingOperator) {
+				if (this.pendingOperator === 'd' || this.pendingOperator === 'c') {
+					if (startRow === this.cursorRow) {
+						const c1 = Math.min(startCol, this.cursorCol);
+						let c2 = Math.max(startCol, this.cursorCol);
+						if (key === 'e' || key === '$' || key === 'l') c2++;
+						const line = this.lines[startRow] || '';
+						const n = Math.max(0, Math.min(c2, line.length) - c1);
+						if (n > 0) {
+							this.lines[startRow] = line.slice(0, c1) + ' '.repeat(n) + line.slice(c1 + n);
+							this.onRenderRow?.(startRow);
+						}
+						this.cursorCol = c1;
+					} else {
+						const minRow = Math.min(startRow, this.cursorRow);
+						const maxRow = Math.max(startRow, this.cursorRow);
+						if (key === 'j' || key === 'k') {
+							for (let r = minRow; r <= maxRow; r++) this.lines[r] = '';
+						} else {
+							for (let r = minRow; r <= maxRow; r++) {
+								const line = this.lines[r] || '';
+								let c1 = 0, c2 = line.length;
+								if (r === startRow)      { if (startRow < this.cursorRow) c1 = startCol; else c2 = startCol; }
+								if (r === this.cursorRow) { if (this.cursorRow < startRow) c1 = this.cursorCol; else c2 = this.cursorCol; }
+								if (r === this.cursorRow && (key === 'e' || key === '$' || key === 'l')) c2++;
+								const n = Math.max(0, Math.min(c2, line.length) - c1);
+								if (n > 0) this.lines[r] = line.slice(0, c1) + ' '.repeat(n) + line.slice(c1 + n);
+							}
+							if (minRow === startRow) this.cursorCol = startCol;
+						}
+						this.cursorRow = minRow;
+						this.onRenderAll?.();
+					}
+					if (this.pendingOperator === 'c') this.setMode('INSERT');
 					this.pendingOperator = null;
-					clearState = true;
 				}
 				break;
+			}
 		}
 
 		if (clearState) {
-			this.resetState();
+			this.commandCount = 0;
+			this.pendingOperator = null;
+			this.pendingAction = null;
+			this.updateStatusBar();
 		}
 
 		this.triggerCursorMoved();
 		this.updateStatusBar();
 	}
 
-	private resetState() {
-		this.commandCount = 0;
-		this.pendingOperator = null;
-		this.pendingAction = null;
-		this.updateStatusBar();
+	// Used by TowerSystem to erase characters when a tower dies
+	public setChar(col: number, row: number, char: string): void {
+		while (this.lines.length <= row) this.lines.push('');
+		let line = this.lines[row] || '';
+		if (col > line.length) line = line.padEnd(col, ' ');
+		this.lines[row] = line.slice(0, col) + char + line.slice(col + 1);
+		this.backgroundCells.delete(`${row},${col}`);
+		this.onRenderRow?.(row);
 	}
 
-	private getCharType(c: string) {
-		if (!c) return -1;
+	private replaceChar(col: number, row: number, char: string): void {
+		while (this.lines.length <= row) this.lines.push('');
+		let line = this.lines[row] || '';
+		if (col > line.length) line = line.padEnd(col, ' ');
+		this.lines[row] = line.slice(0, col) + char + line.slice(col + 1);
+		this.backgroundCells.delete(`${row},${col}`);
+		this.onRenderRow?.(row);
+	}
+
+	private deleteText(col: number, row: number, count: number): void {
+		if (row >= this.lines.length) return;
+		const line = this.lines[row] || '';
+		if (col >= line.length) return;
+		const n = Math.min(count, line.length - col);
+		for (let i = col; i < col + n; i++) this.backgroundCells.delete(`${row},${i}`);
+		this.lines[row] = line.slice(0, col) + ' '.repeat(n) + line.slice(col + n);
+		this.onRenderRow?.(row);
+	}
+
+	private getCharType(c: string): number {
+		if (!c)           return -1;
 		if (/\s/.test(c)) return 0;
 		if (/^\w$/.test(c)) return 1;
 		return 2;
 	}
 
-	private moveForwardWord() {
+	private moveForwardWord(): void {
 		let line = this.lines[this.cursorRow] || '';
-
 		if (this.cursorCol >= line.length - 1) {
 			if (this.cursorRow < this.lines.length - 1) {
 				this.cursorRow++;
@@ -335,123 +506,67 @@ export class VimEngine {
 			}
 			return;
 		}
-
-		const currentType = this.getCharType(line[this.cursorCol]);
-		while (this.cursorCol < line.length && this.getCharType(line[this.cursorCol]) === currentType) this.cursorCol++;
+		const t = this.getCharType(line[this.cursorCol]);
+		while (this.cursorCol < line.length && this.getCharType(line[this.cursorCol]) === t) this.cursorCol++;
 		while (this.cursorCol < line.length && this.getCharType(line[this.cursorCol]) === 0) this.cursorCol++;
-
-		if (this.cursorCol >= line.length) {
-			if (this.cursorRow < this.lines.length - 1) {
-				this.cursorRow++;
-				this.cursorCol = 0;
-				line = this.lines[this.cursorRow] || '';
-				while (this.cursorCol < line.length && this.getCharType(line[this.cursorCol]) === 0) this.cursorCol++;
-			} else {
-				this.cursorCol = Math.max(0, line.length - 1);
-			}
-		}
-	}
-
-	private moveBackwardWord() {
-		let line = this.lines[this.cursorRow] || '';
-
-		if (this.cursorCol <= 0) {
-			if (this.cursorRow > 0) {
-				this.cursorRow--;
-				line = this.lines[this.cursorRow] || '';
-				this.cursorCol = Math.max(0, line.length - 1);
-			} else {
-				return;
-			}
+		if (this.cursorCol >= line.length && this.cursorRow < this.lines.length - 1) {
+			this.cursorRow++;
+			this.cursorCol = 0;
+			line = this.lines[this.cursorRow] || '';
+			while (this.cursorCol < line.length && this.getCharType(line[this.cursorCol]) === 0) this.cursorCol++;
 		} else {
-			this.cursorCol--;
+			this.cursorCol = Math.max(0, Math.min(this.cursorCol, line.length - 1));
 		}
-
-		while (this.cursorCol > 0 && this.getCharType(line[this.cursorCol]) === 0) this.cursorCol--;
-		const targetType = this.getCharType(line[this.cursorCol]);
-		while (this.cursorCol > 0 && this.getCharType(line[this.cursorCol - 1]) === targetType) this.cursorCol--;
 	}
 
-	private moveEndWord() {
+	private moveBackwardWord(): void {
 		let line = this.lines[this.cursorRow] || '';
+		if (this.cursorCol <= 0) {
+			this.cursorCol = 0;
+			return;
+		}
+		this.cursorCol--;
+		while (this.cursorCol > 0 && this.getCharType(line[this.cursorCol]) === 0) this.cursorCol--;
+		const t = this.getCharType(line[this.cursorCol]);
+		while (this.cursorCol > 0 && this.getCharType(line[this.cursorCol - 1]) === t) this.cursorCol--;
+	}
 
+	private moveEndWord(): void {
+		let line = this.lines[this.cursorRow] || '';
 		if (this.cursorCol >= line.length - 1) {
 			if (this.cursorRow < this.lines.length - 1) {
 				this.cursorRow++;
 				this.cursorCol = 0;
 				line = this.lines[this.cursorRow] || '';
-			} else {
-				return;
-			}
+			} else return;
 		} else {
 			this.cursorCol++;
 		}
-
 		while (this.cursorCol < line.length - 1 && this.getCharType(line[this.cursorCol]) === 0) this.cursorCol++;
-		const targetType = this.getCharType(line[this.cursorCol]);
-		while (this.cursorCol < line.length - 1 && this.getCharType(line[this.cursorCol + 1]) === targetType) this.cursorCol++;
+		const t = this.getCharType(line[this.cursorCol]);
+		while (this.cursorCol < line.length - 1 && this.getCharType(line[this.cursorCol + 1]) === t) this.cursorCol++;
 	}
 
-	private setMode(newMode: VimMode) {
+	private setMode(newMode: VimMode): void {
 		this.mode = newMode;
-		if (newMode === 'VISUAL') {
-			this.visualStart = { col: this.cursorCol, row: this.cursorRow };
-		} else {
-			this.visualStart = null;
-		}
+		this.visualStart = newMode === 'VISUAL' ? { col: this.cursorCol, row: this.cursorRow } : null;
 		this.updateStatusBar();
 	}
 
-	private updateStatusBar() {
-		let statusText = `-- ${this.mode} --`;
+	private updateStatusBar(): void {
+		let left: string;
 		if (this.mode === 'COMMAND') {
-			statusText = this.commandBuffer;
+			left = this.commandBuffer;
 		} else {
-			if (this.commandCount > 0) statusText += `  ${this.commandCount}`;
-			if (this.pendingOperator) statusText += `${this.pendingOperator}`;
+			left = `-- ${this.mode} --`;
+			if (this.commandCount > 0)   left += `  ${this.commandCount}`;
+			if (this.pendingOperator)     left += this.pendingOperator;
 		}
-		
-		const rightText = `${this.cursorRow + 1},${this.cursorCol + 1}`;
-		
-		if (this.onStatusUpdate) {
-			this.onStatusUpdate(statusText, rightText);
-		}
+		this.onStatusUpdate?.(left, `${this.cursorRow + 1},${this.cursorCol + 1}`);
 	}
 
-	/** Public: replace a single character in the buffer (used by TowerSystem on tower death). */
-	public setChar(col: number, row: number, char: string) {
-		this.replaceChar(col, row, char);
-	}
-
-	private replaceChar(col: number, row: number, char: string) {
-		while (this.lines.length <= row) this.lines.push('');
-		let line = this.lines[row] || '';
-		if (col > line.length) line = line.padEnd(col, ' ');
-
-		this.lines[row] = line.slice(0, col) + char + line.slice(col + 1);
-		this.triggerRenderRow(row);
-	}
-
-	private deleteText(col: number, row: number, count: number) {
-		if (row >= this.lines.length) return;
-		let line = this.lines[row] || '';
-		if (col >= line.length) return;
-
-		this.lines[row] = line.slice(0, col) + line.slice(col + count);
-		this.triggerRenderRow(row);
-	}
-
-	// Triggers
-	private triggerRenderRow(row: number) {
-		if (this.onRenderRow) this.onRenderRow(row);
-	}
-
-	private triggerRenderAll() {
-		if (this.onRenderAll) this.onRenderAll();
-	}
-
-	public triggerCursorMoved() {
-		if (this.onCursorMoved) this.onCursorMoved();
+	public triggerCursorMoved(): void {
+		this.onCursorMoved?.();
 		this.updateStatusBar();
 	}
 }

@@ -23,7 +23,7 @@ export const TOWER_TYPES: Record<string, TowerType> = {
 		range: 400,
 		fireRate: 1.0,        // faster
 		projectileSpeed: 1000,
-		color: 0x00aaff,
+		color: 0xffffff,
 		scoreValue: 10,
 		pattern: [
 			'  |  ',
@@ -39,7 +39,7 @@ export const TOWER_TYPES: Record<string, TowerType> = {
 		range: 120,
 		fireRate: 4.0,        // machine gun
 		projectileSpeed: 800,
-		color: 0xebcb8b,      // Nord13 Yellow
+		color: 0xe6b800,      // Yellow
 		scoreValue: 10,
 		pattern: [
 			' / \\ ',
@@ -55,7 +55,7 @@ export const TOWER_TYPES: Record<string, TowerType> = {
 		range: 0,
 		fireRate: 0,
 		projectileSpeed: 0,
-		color: 0x4c566a,      // Nord3 Gray
+		color: 0x404040,      // Gray
 		scoreValue: 5,
 		isWall: true,
 		pattern: [
@@ -70,7 +70,7 @@ export const TOWER_TYPES: Record<string, TowerType> = {
 		range: 250,
 		fireRate: 2.5,
 		projectileSpeed: 1200,
-		color: 0xd08770,      // Nord12 Orange
+		color: 0xb32d2d,      // Dull Red
 		scoreValue: 15,
 		isAoe: true,
 		pattern: [

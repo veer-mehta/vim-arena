@@ -20,31 +20,29 @@ export class CombatSystem {
 
     update(delta: number, enemies: Enemy[]): void {
         const towers = this.towerSystem.activeTowers;
-        const vim = (this.towerSystem as any).vim as any; // Access VimEngine
+        // Cast through any to access private vim/gutter/font fields on TowerSystem
+        const ts = this.towerSystem as any;
+        const vim = ts.vim;
 
-        // 1. Character-based collisions (Every typed char is a tiny wall)
-        if (vim && vim.lines) {
+        // Character-collision: enemies chip away at buffer text and take minor damage
+        if (vim?.lines) {
             for (const e of enemies) {
                 if (e.isDead || e.hasExited) continue;
-                
-                // Convert world coords to grid coords
-                const charCol = Math.floor((e.x - (this.towerSystem as any).gutterWidth) / (this.towerSystem as any).fontWidth);
-                const charRow = Math.floor(e.y / (this.towerSystem as any).fontHeight);
-                
-                if (charRow >= 0 && charRow < vim.lines.length) {
-                    const line = vim.lines[charRow];
-                    if (charCol >= 0 && charCol < line.length && line[charCol] !== ' ') {
-                        // Found a character! Treat it as a tiny barrier
-                        e.takeDamage(0.5); // Enemies take minor damage from hitting code
+                const col = Math.floor((e.x - ts.gutterWidth) / ts.fontWidth);
+                const row = Math.floor(e.y / ts.fontHeight);
+                if (row >= 0 && row < vim.lines.length) {
+                    const line: string = vim.lines[row];
+                    if (col >= 0 && col < line.length && line[col] !== ' ') {
+                        // Skip cells that belong to a live tower — melee handles those
+                        if (this.towerSystem.isPartOfTower(col, row)) continue;
+                        // Skip background text — it doesn't harm enemies and doesn't get eaten by them
+                        if (vim.isBackground(row, col)) continue;
                         
-                        // Delete the character (the enemy 'eats' it)
-                        const newLine = line.substring(0, charCol) + ' ' + line.substring(charCol + 1);
-                        vim.lines[charRow] = newLine;
-                        
-                        // Trigger re-render of that row
-                        if (vim.onRenderRow) vim.onRenderRow(charRow);
-                        
-                        if (e.isDead) {
+                        const wasAlive = !e.isDead;
+                        e.takeDamage(0.5);
+                        vim.lines[row] = line.substring(0, col) + ' ' + line.substring(col + 1);
+                        vim.onRenderRow?.(row);
+                        if (wasAlive && e.isDead) {
                             this.gameState.addKill();
                             this.towerSystem.clipboard.onEnemyKilled();
                         }
@@ -53,99 +51,76 @@ export class CombatSystem {
             }
         }
 
-        // 2. Towers fire at nearest in-range enemy...
-
-        // Towers fire at nearest in-range enemy with predictive targeting
+        // Towers fire at enemies
         for (const tower of towers) {
             if (!tower.canFire() || tower.type.damage <= 0) continue;
 
             if (tower.type.isAoe) {
-                let didFire = false;
+                let fired = false;
                 for (const e of enemies) {
                     if (e.isDead || e.hasExited) continue;
-                    const d = Math.hypot(e.x - tower.worldX, e.y - tower.worldY);
-                    if (d <= tower.type.range) {
+                    if (Math.hypot(e.x - tower.worldX, e.y - tower.worldY) <= tower.type.range) {
                         e.takeDamage(tower.type.damage);
-                        if (e.isDead) {
-                            this.gameState.addKill();
-                            this.towerSystem.clipboard.onEnemyKilled();
-                        }
-                        didFire = true;
+                        if (e.isDead) { this.gameState.addKill(); this.towerSystem.clipboard.onEnemyKilled(); }
+                        fired = true;
                     }
                 }
-                
-                if (didFire) {
+                if (fired) {
                     tower.resetFireCooldown();
-                    const circle = this.scene.add.circle(tower.worldX, tower.worldY, tower.type.range, tower.type.color, 0.3);
-                    circle.setDepth(15);
-                    this.scene.tweens.add({
-                        targets: circle,
-                        alpha: 0,
-                        duration: 300,
-                        onComplete: () => circle.destroy()
-                    });
+                    const circle = this.scene.add.circle(tower.worldX, tower.worldY, tower.type.range, tower.type.color, 0.3).setDepth(15);
+                    this.scene.tweens.add({ targets: circle, alpha: 0, duration: 300, onComplete: () => circle.destroy() });
                 }
                 continue;
             }
 
+            // Single-target: find nearest in range with predictive lead
             let nearest: Enemy | null = null;
             let nearestDist = Infinity;
             for (const e of enemies) {
                 if (e.isDead || e.hasExited) continue;
                 const d = Math.hypot(e.x - tower.worldX, e.y - tower.worldY);
-                if (d <= tower.type.range && d < nearestDist) { 
-                    nearestDist = d; 
-                    nearest = e; 
-                }
+                if (d <= tower.type.range && d < nearestDist) { nearestDist = d; nearest = e; }
             }
             if (nearest) {
                 tower.resetFireCooldown();
-                
-                // Correct predictive targeting using actual velocity
                 const dx = nearest.targetX - nearest.x;
                 const dy = nearest.targetY - nearest.y;
                 const distToTarget = Math.hypot(dx, dy);
-                let predictedX = nearest.x;
-                let predictedY = nearest.y;
-
+                let px = nearest.x, py = nearest.y;
                 if (distToTarget > 0) {
-                    const vx = (dx / distToTarget) * nearest.speed;
-                    const vy = (dy / distToTarget) * nearest.speed;
-                    const travelTime = nearestDist / tower.type.projectileSpeed;
-                    
-                    predictedX += vx * travelTime;
-                    predictedY += vy * travelTime;
+                    const t = nearestDist / tower.type.projectileSpeed;
+                    px += (dx / distToTarget) * nearest.speed * t;
+                    py += (dy / distToTarget) * nearest.speed * t;
                 }
-                
-                this.projectiles.push(new Projectile(
-                    this.scene,
-                    tower.worldX, tower.worldY,
-                    predictedX, predictedY,
-                    tower.type.projectileSpeed,
-                    tower.type.damage,
-                    tower.type.range,
-                ));
+                this.projectiles.push(new Projectile(this.scene, tower.worldX, tower.worldY, px, py, tower.type.projectileSpeed, tower.type.damage, tower.type.range));
             }
         }
 
-        // Move projectiles, check hits
+        // Update projectiles
         for (let i = this.projectiles.length - 1; i >= 0; i--) {
-            const p = this.projectiles[i];
-            const hit = p.update(delta, enemies);
-            if (hit?.isDead) {
-                this.gameState.addKill();
-                this.towerSystem.clipboard.onEnemyKilled();
-            }
-            if (p.isDead) this.projectiles.splice(i, 1);
+            const hit = this.projectiles[i].update(delta, enemies);
+            if (hit?.isDead) { this.gameState.addKill(); this.towerSystem.clipboard.onEnemyKilled(); }
+            if (this.projectiles[i].isDead) this.projectiles.splice(i, 1);
         }
 
-        // Enemies melee attack nearest tower (kamikaze action)
+        // Collision: enemies attack the nearest tower they touch and are destroyed
         for (const e of enemies) {
             if (e.isDead || e.hasExited) continue;
             for (const tower of towers) {
+                if (tower.isDead) continue;
                 if (Math.hypot(e.x - tower.worldX, e.y - tower.worldY) <= MELEE_RANGE) {
+                    // Deal damage to tower
                     this.towerSystem.towerTakeDamage(tower, e.attackDamage);
-                    e.takeDamage(e.maxHp); // Enemy perishes after dealing 1 damage
+                    
+                    // Kill the enemy on impact
+                    const wasAlive = !e.isDead;
+                    e.takeDamage(e.hp + 1); // Ensure it dies
+                    if (wasAlive && e.isDead) {
+                        this.gameState.addKill();
+                        this.towerSystem.clipboard.onEnemyKilled();
+                    }
+                    
+                    // Break so this enemy doesn't hit multiple towers in one frame
                     break;
                 }
             }
