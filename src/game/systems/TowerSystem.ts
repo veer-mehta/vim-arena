@@ -29,6 +29,7 @@ export class TowerSystem {
     public onTowerCreated?: (name: string, col: number, row: number) => void;
     public onTowerDestroyed?: (col: number, row: number, name?: string) => void;
     public onTowerDeletedByEdit?: (name: string, col: number, row: number) => void;
+    public onPasteFailed?: () => void;
 
     constructor(scene: Scene, vim: VimEngine, gutterWidth: number, fontWidth: number, fontHeight: number, gameState: GameState, centerCol: number = 35) {
         this.scene = scene;
@@ -39,8 +40,8 @@ export class TowerSystem {
         this.fontHeight = fontHeight;
         this.centerCol = centerCol;
         this.clipboardSystem = new ClipboardSystem(gameState);
-        this.vim.onPaste = (row, col, index) => this.handlePaste(row, col, index);
-        this.vim.onYank = (pattern) => this.clipboardSystem.yankPattern(pattern);
+        this.vim.onPaste = (row, col, reg) => this.handlePaste(row, col, reg);
+        this.vim.onYank = (pattern, reg) => this.clipboardSystem.yankPattern(pattern, reg);
         this.placeInitialTowers();
     }
 
@@ -48,8 +49,17 @@ export class TowerSystem {
         for (let i = 0; i < pattern.length; i++) {
             const lineIndex = startRow + i;
             while (this.vim.lines.length <= lineIndex) this.vim.lines.push('');
-            const line = this.vim.lines[lineIndex].padEnd(startCol + pattern[i].length, ' ');
-            this.vim.lines[lineIndex] = line.slice(0, startCol) + pattern[i] + line.slice(startCol + pattern[i].length);
+            
+            let line = this.vim.lines[lineIndex] || '';
+            const minLengthNeeded = startCol + pattern[i].length;
+            if (line.length < minLengthNeeded) {
+                line = line.padEnd(minLengthNeeded, ' ');
+            }
+            
+            const before = line.slice(0, startCol);
+            const after = line.slice(startCol + pattern[i].length);
+            this.vim.lines[lineIndex] = before + pattern[i] + after;
+            
             for (let c = 0; c < pattern[i].length; c++) {
                 this.vim.backgroundCells.delete(`${lineIndex},${startCol + c}`);
             }
@@ -68,13 +78,14 @@ export class TowerSystem {
         this.gameState.setTowerCount(this.countShootingTowers());
     }
 
-    private handlePaste(row: number, col: number, index: number): void {
-        const clipboard = this.clipboardSystem.getClipboard();
-        if (!clipboard.length) return;
-        const entryIndex = Math.min(index, clipboard.length - 1);
-        if (!this.clipboardSystem.useEntry(entryIndex)) return;
+    private handlePaste(row: number, col: number, register: string): void {
+        const entry = this.clipboardSystem.useEntry(register);
+        if (!entry) {
+            this.onPasteFailed?.();
+            return;
+        }
 
-        const { towerType } = clipboard[entryIndex];
+        const { towerType } = entry;
         this.writePatternToBuffer(col, row, towerType.pattern);
 
         let towerId = Object.keys(TOWER_TYPES).find(k => TOWER_TYPES[k].name === towerType.name);
@@ -112,7 +123,7 @@ export class TowerSystem {
     }
 
     private countShootingTowers(): number {
-        return Array.from(this.towers.values()).filter(t => !t.isDead && !t.type.isWall && t.type.damage > 0).length;
+        return Array.from(this.towers.values()).filter(t => !t.isDead && t.type.damage > 0).length;
     }
 
     scanRow(row: number): void {
@@ -164,12 +175,14 @@ export class TowerSystem {
 
                 const key = `${foundCol},${row}`;
                 if (match && !hasBackgroundCell && !this.towers.has(key)) {
-                    const cCol = foundCol + Math.floor(firstLine.length / 2);
-                    const cRow = row + Math.floor(towerType.pattern.length / 2);
-                    const wx = this.gutterWidth + cCol * this.fontWidth + this.fontWidth / 2;
-                    const wy = cRow * this.fontHeight + this.fontHeight / 2;
+                    const patternWidth = towerType.pattern[0].length;
+                    const patternHeight = towerType.pattern.length;
+                    
+                    const wx = this.gutterWidth + (foundCol * this.fontWidth) + (patternWidth * this.fontWidth) / 2;
+                    const wy = (row * this.fontHeight) + (patternHeight * this.fontHeight) / 2;
+                    
                     this.towerPatterns.set(key, { type: typeId, startCol: foundCol, startRow: row });
-                    this.towers.set(key, new Tower(this.scene, cCol, cRow, wx, wy, towerType, this.fontWidth * firstLine.length, this.fontHeight * towerType.pattern.length, this.gutterWidth, this.fontWidth, this.fontHeight, foundCol, row));
+                    this.towers.set(key, new Tower(this.scene, foundCol, row, wx, wy, towerType, patternWidth * this.fontWidth, patternHeight * this.fontHeight, this.gutterWidth, this.fontWidth, this.fontHeight, foundCol, row));
                     this.onTowerCreated?.(towerType.name, foundCol, row);
                 }
                 search = foundCol + 1;

@@ -23,10 +23,13 @@ export function VimLayout({
     filename,
     statusShortcuts,
     bodyRef,
-    gutterLineHeight = 24,
+    gutterLineHeight = 28,
     bodyAlignItems = 'center',
     transparentBg = false
 }: VimLayoutProps) {
+    const isCommand = vimMode === 'COMMAND' || vimMode === 'SEARCH';
+    const modeColor = isCommand ? 'var(--yellow)' : 'var(--accent)';
+
     return (
         <div className="page" style={transparentBg ? { background: 'transparent' } : {}}>
             <div className="vim-editor" style={transparentBg ? { background: 'transparent' } : {}}>
@@ -45,34 +48,80 @@ export function VimLayout({
                 </div>
 
                 {/* ── Status bar ── */}
-                <div className="vim-statusline" style={{ borderTop: '1px solid var(--border)', height: '24px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                        <span style={{ 
-                            color: 'var(--accent)', 
-                            fontWeight: 'bold',
-                            fontSize: '11px',
-                            letterSpacing: '1.5px'
-                        }}>
-                            {vimMode}
-                        </span>
-                        <span style={{ color: 'var(--text-dim)', fontSize: '11px', fontWeight: '300' }}>{filename}</span>
+                <div className="vim-statusline" style={{ 
+                    height: '32px', 
+                    padding: 0, 
+                    display: 'flex', 
+                    alignItems: 'stretch', 
+                    borderTop: '1px solid var(--border)',
+                    boxShadow: 'none'
+                }}>
+                    <div style={{ 
+                        background: modeColor, 
+                        color: 'var(--bg)', 
+                        padding: '0 16px', 
+                        display: 'flex', 
+                        alignItems: 'center',
+                        fontFamily: '"Press Start 2P", monospace',
+                        fontSize: '9px',
+                        fontWeight: 'bold',
+                        letterSpacing: '1px'
+                    }}>
+                        {vimMode}
                     </div>
-                    <div>
-                        <span style={{ color: 'var(--text-dim)' }}>{statusShortcuts}</span>
+                    <div style={{ 
+                        background: 'var(--bg-alt)', 
+                        padding: '0 16px', 
+                        display: 'flex', 
+                        alignItems: 'center',
+                        fontSize: '11px',
+                        color: 'var(--text)',
+                        borderRight: '1px solid var(--border)'
+                    }}>
+                        {filename}
+                    </div>
+                    <div style={{ flex: 1, background: 'rgba(255,255,255,0.02)', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 16px' }}>
+                        <span style={{ color: 'var(--text-dim)', fontSize: '10px', letterSpacing: '1px' }}>{statusShortcuts}</span>
                     </div>
                 </div>
 
                 {/* ── Command line ── */}
-                <div className="vim-commandline" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: '32px' }}>
+                <div className="vim-commandline" style={{ 
+                    height: '36px', 
+                    background: 'var(--bg-panel)',
+                    padding: '0 20px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    borderTop: '1px solid var(--border)'
+                }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <span style={{ color: 'var(--text)', fontSize: '13px' }}>{commandBuffer || ''}</span>
-                        {!commandBuffer && <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>system command...</span>}
-                        {commandBuffer && <div className="vim-cursor" style={{ background: 'var(--text)', width: '8px' }} />}
+                        <span style={{ 
+                            color: 'var(--text)', 
+                            fontSize: '14px', 
+                            fontFamily: 'monospace',
+                            fontWeight: '500'
+                        }}>
+                            {commandBuffer || ''}
+                        </span>
+                        {!commandBuffer && (
+                            <span style={{ color: 'var(--text-muted)', fontSize: '12px', fontStyle: 'italic', opacity: 0.5 }}>
+                                enter command...
+                            </span>
+                        )}
+                        {commandBuffer && <div className="vim-cursor" style={{ background: 'var(--text)', width: '8px', height: '18px' }} />}
                     </div>
                     {cmdHint && (
-                        <span style={{ color: 'var(--accent)', fontSize: '11px', opacity: 0.7, letterSpacing: '1px' }}>
-                            {cmdHint}
-                        </span>
+                        <div style={{ 
+                            background: 'rgba(255,255,255,0.05)', 
+                            padding: '4px 10px', 
+                            borderRadius: '2px',
+                            border: '1px solid var(--border)'
+                        }}>
+                            <span style={{ color: modeColor, fontSize: '10px', fontFamily: '"Press Start 2P", monospace' }}>
+                                {cmdHint}
+                            </span>
+                        </div>
                     )}
                 </div>
             </div>

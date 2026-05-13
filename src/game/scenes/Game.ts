@@ -42,11 +42,16 @@ export class Game extends Scene {
 	private gameOverStatusText!: GameObjects.Text;
 	private cursorBlinkTimer: number = 0;
 	private cursorVisible: boolean = true;
+	private hudMessageText!: GameObjects.Text;
 	private hudLives!: GameObjects.Text;
 	private hudScore!: GameObjects.Text;
 	private hudTime!: GameObjects.Text;
 	private hudEnergy!: GameObjects.Text;
-	private hudVimStatus!: GameObjects.Text;
+	private hudEnergyBg!: GameObjects.Rectangle;
+	private hudModeBg!: GameObjects.Rectangle;
+	private hudModeText!: GameObjects.Text;
+	private hudFilenameText!: GameObjects.Text;
+	private hudPosText!: GameObjects.Text;
 	private gameAreaStartX: number = 0;
 
 	// --- Tower event log ---
@@ -82,8 +87,8 @@ export class Game extends Scene {
 		// Add left border to clipboard
 		this.add.rectangle(clipboardX, 0, 1, cam.height, T.phaserBorder).setOrigin(0, 0).setDepth(42).setScrollFactor(0);
 
-		this.clipboardTitle = this.add.text(clipboardX + 20, 24, 'CLIPBOARD', {
-			fontFamily: '"Press Start 2P", monospace', fontSize: '12px', color: T.phaserText
+		this.clipboardTitle = this.add.text(clipboardX + 20, 24, 'REGISTERS', {
+			fontFamily: '"Press Start 2P", monospace', fontSize: '12px', color: T.phaserText, resolution: 3
 		});
 		this.clipboardTitle.setOrigin(0, 0).setScrollFactor(0).setDepth(42);
 
@@ -140,6 +145,9 @@ export class Game extends Scene {
 			if (this.towerLog.length >= this.MAX_TOWER_LOG) this.towerLog.shift();
 			this.towerLog.push({ ts: this.gameState.elapsedSeconds, kind: 'edit', name, col, row });
 		};
+		this.towerSystem.onPasteFailed = () => {
+			this.flashEnergyHUD();
+		};
 
 		// --- Vim engine events ---
 		this.engine.getViewport = () => {
@@ -163,6 +171,11 @@ export class Game extends Scene {
 		this.engine.onRenderRow = (row: number) => {
 			this.renderText();
 			this.towerSystem.scanRow(row);
+		};
+		this.engine.onEnergyCost = (amount: number) => {
+			if (this.gameState.tryConsumeEnergy(amount)) return true;
+			this.flashEnergyHUD();
+			return false;
 		};
 
 		// --- Game state events ---
@@ -200,27 +213,49 @@ export class Game extends Scene {
 			}
 		};
 
+		// --- Tutorial / Powers Hint ---
+		const hintStyle = { fontFamily: '"Press Start 2P", monospace', fontSize: '8px', color: '#888888' };
+
 		// --- HUD and Overlays ---
-		const hudY = cam.height - HUD_HEIGHT;
-		this.add.rectangle(0, hudY, cam.width, HUD_HEIGHT, T.phaserBgAlt).setOrigin(0, 0).setDepth(100).setScrollFactor(0);
-		this.add.rectangle(0, hudY, cam.width, 1, T.phaserBorder).setOrigin(0, 0).setDepth(102).setScrollFactor(0);
+		const hudY = cam.height;
+		this.add.rectangle(0, hudY, cam.width, HUD_HEIGHT + 10, T.phaserBgAlt).setOrigin(0, 1).setDepth(100).setScrollFactor(0);
+		this.add.rectangle(0, hudY - HUD_HEIGHT, cam.width, 2, T.phaserBorder).setOrigin(0, 0).setDepth(102).setScrollFactor(0);
 
 		// 1 & 2: Vim Position and Status (Far Left)
-		this.hudVimStatus = this.add.text(20, hudY + 10, '[1,1] -- NORMAL --', { fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: T.phaserText, resolution: 3 }).setOrigin(0, 0).setDepth(101).setScrollFactor(0);
-		this.hudTime = this.add.text(260, hudY + 10, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '10px', resolution: 3, color: T.phaserWarning }).setOrigin(0, 0).setDepth(101).setScrollFactor(0);
+		this.hudModeBg = this.add.rectangle(0, hudY, 110, HUD_HEIGHT, T.phaserAccentNum).setOrigin(0, 1).setDepth(101).setScrollFactor(0);
+		this.hudModeText = this.add.text(55, hudY - HUD_HEIGHT / 2, 'NORMAL', { fontFamily: '"Press Start 2P", monospace', fontSize: '9px', color: '#0d1117', resolution: 3 }).setOrigin(0.5, 0.5).setDepth(102).setScrollFactor(0);
+		this.hudPosText = this.add.text(175, hudY - HUD_HEIGHT / 2, '[1,1]', { fontFamily: '"Press Start 2P", monospace', fontSize: '9px', color: T.phaserTextDim, resolution: 3 }).setOrigin(0, 0.5).setDepth(101).setScrollFactor(0);
+		this.hudMessageText = this.add.text(280, hudY - HUD_HEIGHT / 2, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '9px', color: T.phaserText, resolution: 3 }).setOrigin(0, 0.5).setDepth(101).setScrollFactor(0);
+
+		this.hudTime = this.add.text(cam.width - 570, hudY - HUD_HEIGHT / 2, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '9px', resolution: 3, color: T.phaserWarning }).setOrigin(0, 0.5).setDepth(101).setScrollFactor(0);
 
 		// Right Section (Resources & Performance - Right Justified to screen edge)
 		// Kills (Far Right)
-		this.hudScore = this.add.text(cam.width - 20, hudY + 10, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '10px', resolution: 3, color: T.phaserDanger }).setOrigin(1, 0).setDepth(101).setScrollFactor(0);
+		this.hudScore = this.add.text(cam.width - 20, hudY - HUD_HEIGHT / 2, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '9px', resolution: 3, color: T.phaserDanger }).setOrigin(1, 0.5).setDepth(101).setScrollFactor(0);
 
 		// Towers (Left of Kills)
-		this.hudLives = this.add.text(cam.width - 160, hudY + 10, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '10px', resolution: 3, color: T.phaserDanger }).setOrigin(1, 0).setDepth(101).setScrollFactor(0);
+		this.hudLives = this.add.text(cam.width - 160, hudY - HUD_HEIGHT / 2, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '9px', resolution: 3, color: T.phaserDanger }).setOrigin(1, 0.5).setDepth(101).setScrollFactor(0);
 
 		// Energy (Left of Towers)
-		this.hudEnergy = this.add.text(cam.width - 360, hudY + 10, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: T.phaserSuccess, resolution: 3 }).setOrigin(1, 0).setDepth(101).setScrollFactor(0);
+		this.hudEnergyBg = this.add.rectangle(cam.width - 360, hudY, 120, HUD_HEIGHT, 0x000000, 0).setOrigin(1, 1).setDepth(100).setScrollFactor(0);
+		this.hudEnergy = this.add.text(cam.width - 360 - 10, hudY - HUD_HEIGHT / 2, '', { fontFamily: '"Press Start 2P", monospace', fontSize: '8px', color: T.phaserSuccess, resolution: 3 }).setOrigin(1, 0.5).setDepth(101).setScrollFactor(0);
 
 		this.engine.onStatusUpdate = (leftStatus: string, rightStatus: string) => {
-			this.hudVimStatus.setText(`[${rightStatus}] ${leftStatus}`);
+			const isCommand = leftStatus.startsWith(':') || leftStatus.startsWith('/');
+			const isInsert = leftStatus.includes('INSERT');
+			const isVisual = leftStatus.includes('VISUAL');
+
+			let modeName = 'NORMAL';
+			let color = T.phaserAccentNum;
+
+			if (isCommand) { modeName = 'COMMAND'; color = T.phaserWarningNum; }
+			else if (isInsert) { modeName = 'INSERT'; color = T.phaserSuccessNum; }
+			else if (isVisual) { modeName = 'VISUAL'; color = 0xb48ead; }
+
+			this.hudModeBg.setFillStyle(color);
+			this.hudModeText.setText(modeName);
+			this.hudPosText.setText(`[${rightStatus}]`);
+			this.hudMessageText.setText(leftStatus);
 		};
 
 		this.engine.onCommand = (cmd: string) => {
@@ -247,16 +282,16 @@ export class Game extends Scene {
 		this.gameOverCmdBorder = this.add.rectangle(0, cmdBarY, cam.width, 1, T.phaserSuccessNum)
 			.setOrigin(0, 0).setDepth(311).setScrollFactor(0).setVisible(false);
 
-		this.gameOverCmdLine = this.add.text(16, cmdBarY + 14, '', {
-			fontFamily: 'monospace', fontSize: '20px', color: '#ffffff', resolution: 2
-		}).setDepth(312).setScrollFactor(0).setVisible(false);
+		this.gameOverCmdLine = this.add.text(16, cmdBarY + 28, '', {
+			fontFamily: '"Press Start 2P", monospace', fontSize: '18px', color: '#d8dee9', resolution: 3
+		}).setOrigin(0, 0.5).setDepth(312).setScrollFactor(0).setVisible(false);
 
-		this.gameOverCmdCursor = this.add.rectangle(18, cmdBarY + 14, 12, 22, 0xffffff)
-			.setOrigin(0, 0).setDepth(313).setScrollFactor(0).setVisible(false);
+		this.gameOverCmdCursor = this.add.rectangle(18, cmdBarY + 28, 12, 22, 0xffffff)
+			.setOrigin(0, 0.5).setDepth(313).setScrollFactor(0).setVisible(false);
 
-		this.gameOverStatusText = this.add.text(cam.width - 16, cmdBarY + 18, '', {
-			fontFamily: 'monospace', fontSize: '13px', color: '#888888', resolution: 2
-		}).setOrigin(1, 0).setDepth(312).setScrollFactor(0).setVisible(false);
+		this.gameOverStatusText = this.add.text(cam.width - 16, cmdBarY + 28, '', {
+			fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: '#888888', resolution: 3
+		}).setOrigin(1, 0.5).setDepth(312).setScrollFactor(0).setVisible(false);
 
 		// --- Input ---
 		this.input.keyboard?.on('keydown', (event: KeyboardEvent) => {
@@ -265,8 +300,13 @@ export class Game extends Scene {
 					if (this.gameOverCommand.startsWith(':w')) {
 						const parts = this.gameOverCommand.trim().split(/\s+/);
 						const name = parts.length > 1 ? parts.slice(1).join(' ') : undefined;
-						this.saveScoreAndQuit(name);
-					} else if (this.gameOverCommand === ':q') {
+
+						if (this.gameOverCommand.startsWith(':wq')) {
+							this.saveScoreAndQuit(name);
+						} else {
+							this.saveScoreAndRestart(name);
+						}
+					} else if (this.gameOverCommand === ':q' || this.gameOverCommand === ':q!') {
 						this.quitToDashboard();
 					} else {
 						// Unknown command — flash red
@@ -309,19 +349,34 @@ export class Game extends Scene {
 		const cmd = this.gameOverCommand;
 		this.gameOverCmdLine.setText(cmd || '');
 
+		const isGuest = !(window as any).googlePlayerName;
+
 		// Color hint based on command
 		if (cmd.startsWith(':w')) {
 			this.gameOverCmdLine.setColor(T.phaserSuccess);
-			this.gameOverStatusText.setText(':w <name>  →  save & quit');
+			if (cmd.startsWith(':wq')) {
+				if (isGuest && cmd.trim() === ':wq') {
+					this.gameOverStatusText.setText(':wq <name>  →  save & quit');
+				} else {
+					this.gameOverStatusText.setText(':wq  →  save & quit');
+				}
+			} else {
+				if (isGuest && cmd.trim() === ':w') {
+					this.gameOverStatusText.setText(':w <name>   →  save & restart');
+				} else {
+					this.gameOverStatusText.setText(':w    →  save & restart');
+				}
+			}
 		} else if (cmd.startsWith(':q')) {
-			this.gameOverCmdLine.setColor('#888888');
-			this.gameOverStatusText.setText(':q  →  quit without saving');
-		} else if (cmd.length > 0) {
 			this.gameOverCmdLine.setColor(T.phaserDanger);
-			this.gameOverStatusText.setText('unknown command');
+			this.gameOverStatusText.setText(':q!   →  quit without saving');
 		} else {
-			this.gameOverCmdLine.setColor('#f0f0f0');
-			this.gameOverStatusText.setText(':w <name>  save   |   :q  quit');
+			this.gameOverCmdLine.setColor('#d8dee9');
+			if (isGuest) {
+				this.gameOverStatusText.setText('type :w <name> to save or :q to quit');
+			} else {
+				this.gameOverStatusText.setText('type :w to save or :q to quit');
+			}
 		}
 
 		// Reposition cursor after text
@@ -329,7 +384,7 @@ export class Game extends Scene {
 		const cmdBarY = cam.height - 56;
 		const textWidth = this.gameOverCmdLine.width;
 		this.gameOverCmdCursor.x = 16 + textWidth + 2;
-		this.gameOverCmdCursor.y = cmdBarY + 14;
+		this.gameOverCmdCursor.y = cmdBarY + 28;
 	}
 
 	update(_time: number, delta: number) {
@@ -357,16 +412,21 @@ export class Game extends Scene {
 
 		this.updateHUD();
 		this.updateGutterLineNumbers();
-		this.updateClipboardUI();
+		this.updateRegistersUI();
 	}
 
 	// ---- Text rendering ----
 	private renderText(): void {
 		const T = THEMES.minimal;
 
-		// Clean up deleted lines
+		const cam = this.cameras.main;
+		const visibleRows = Math.ceil(cam.height / FONT_HEIGHT) + 2;
+		const startRow = this.firstVisibleRow;
+		const endRow = startRow + visibleRows;
+
+		// Clean up rows outside the current viewport
 		for (const [rowIndex, textObj] of this.rowTextsBg.entries()) {
-			if (rowIndex >= this.engine.lines.length) {
+			if (rowIndex < startRow || rowIndex >= endRow || rowIndex >= this.engine.lines.length) {
 				textObj.destroy();
 				this.rowTextsBg.delete(rowIndex);
 				const fg = this.rowTextsFg.get(rowIndex);
@@ -376,13 +436,12 @@ export class Game extends Scene {
 				}
 			}
 		}
-		const cam = this.cameras.main;
 		const gameAreaWidth = cam.width - this.gameAreaStartX - 320;
 		const visibleCols = Math.floor(gameAreaWidth / this.fontWidth);
 		const startCol = Math.max(0, this.firstVisibleCol - 5);
 		const endCol = startCol + visibleCols + 10;
 
-		for (let r = 0; r < this.engine.lines.length; r++) {
+		for (let r = startRow; r < endRow && r < this.engine.lines.length; r++) {
 			const line = this.engine.lines[r] ?? '';
 			let bgString = '';
 			let fgString = '';
@@ -401,12 +460,13 @@ export class Game extends Scene {
 				}
 			}
 
-			const xPos = this.gameAreaStartX + startCol * this.fontWidth;
+			const xPos = Math.floor(this.gameAreaStartX + startCol * this.fontWidth);
+			const targetY = Math.floor(r * FONT_HEIGHT);
 
 			let tBg = this.rowTextsBg.get(r);
 			if (!tBg) {
-				tBg = this.add.text(xPos, r * FONT_HEIGHT, bgString, {
-					fontFamily: '"Press Start 2P", monospace', fontSize: `${FONT_HEIGHT}px`, color: T.textMuted, resolution: 3,
+				tBg = this.add.text(xPos, targetY, bgString, {
+					fontFamily: '"Press Start 2P", monospace', fontSize: `${FONT_HEIGHT}px`, color: T.textMuted, resolution: 1,
 				});
 				tBg.setOrigin(0, 0);
 				tBg.setAlpha(0.35);
@@ -414,18 +474,20 @@ export class Game extends Scene {
 			} else {
 				if (tBg.text !== bgString) tBg.setText(bgString);
 				if (tBg.x !== xPos) tBg.setX(xPos);
+				if (tBg.y !== targetY) tBg.setY(targetY);
 			}
 
 			let tFg = this.rowTextsFg.get(r);
 			if (!tFg) {
-				tFg = this.add.text(xPos, r * FONT_HEIGHT, fgString, {
-					fontFamily: '"Press Start 2P", monospace', fontSize: `${FONT_HEIGHT}px`, color: T.phaserText, resolution: 3,
+				tFg = this.add.text(xPos, targetY, fgString, {
+					fontFamily: '"Press Start 2P", monospace', fontSize: `${FONT_HEIGHT}px`, color: T.phaserText, resolution: 1,
 				});
 				tFg.setOrigin(0, 0);
 				this.rowTextsFg.set(r, tFg);
 			} else {
 				if (tFg.text !== fgString) tFg.setText(fgString);
 				if (tFg.x !== xPos) tFg.setX(xPos);
+				if (tFg.y !== targetY) tFg.setY(targetY);
 			}
 		}
 	}
@@ -434,7 +496,7 @@ export class Game extends Scene {
 	private updateCursorPosition() {
 		this.cursorRect.x = this.gameAreaStartX + this.engine.cursorCol * this.fontWidth;
 		this.cursorRect.y = this.engine.cursorRow * FONT_HEIGHT;
-		
+
 		this.cursorCharText.x = this.cursorRect.x;
 		this.cursorCharText.y = this.cursorRect.y;
 		const lineStr = this.engine.lines[this.engine.cursorRow] || '';
@@ -509,7 +571,21 @@ export class Game extends Scene {
 
 		this.hudScore.setText(`KILLS: ${this.gameState.kills}`);
 		this.hudTime.setText(this.formatTime(this.gameState.elapsedSeconds));
-		this.hudEnergy.setText(`ENERGY: ${this.gameState.energy}`);
+		this.hudEnergy.setText(`BUFFER: ${this.gameState.energy}`);
+	}
+
+	private flashEnergyHUD(): void {
+		const T = THEMES.minimal;
+
+		// Invert colors
+		this.hudEnergy.setColor('#0d1117');
+		this.hudEnergyBg.setFillStyle(T.phaserSuccessNum, 1);
+
+		// Flip back after short delay
+		this.time.delayedCall(250, () => {
+			this.hudEnergy.setColor(T.phaserSuccess);
+			this.hudEnergyBg.setFillStyle(0x000000, 0);
+		});
 	}
 
 	private formatTime(seconds: number): string {
@@ -553,150 +629,121 @@ export class Game extends Scene {
 		}, [] as { x: number; y: number }[]), true);
 
 		// ── Title bar ─────────────────────────────────────────────────────
-		this.add.rectangle(panelX, panelY, panelW, 36, T.phaserSuccessNum)
+		this.add.rectangle(panelX, panelY, panelW, 40, T.phaserSuccessNum)
 			.setOrigin(0, 0).setDepth(D + 1).setScrollFactor(0);
-		this.add.text(panelX + panelW / 2, panelY + 18,
+		this.add.text(panelX + panelW / 2, panelY + 20,
 			'GAME OVER',
-			{ fontFamily: 'monospace', fontSize: '13px', color: '#000000', fontStyle: 'bold', resolution: 2 }
+			{ fontFamily: '"Press Start 2P", monospace', fontSize: '16px', color: '#000000', fontStyle: 'bold', resolution: 3 }
 		).setOrigin(0.5, 0.5).setDepth(D + 2).setScrollFactor(0);
 
 		// ── Body content ──────────────────────────────────────────────────
-		let cy = panelY + 52; // current Y cursor inside panel
-		const px = panelX + 20;
-		const monoSm = { fontFamily: 'monospace', fontSize: '12px', resolution: 2 };
-		const monoMd = { fontFamily: 'monospace', fontSize: '14px', resolution: 2 };
+		let cy = panelY + 60; // current Y cursor inside panel
+		const px = panelX + 30;
+		const monoSm = { fontFamily: '"Press Start 2P", monospace', fontSize: '12px', resolution: 3 };
+		const monoMd = { fontFamily: '"Press Start 2P", monospace', fontSize: '16px', resolution: 3 };
 
 		// Score banner
 		this.add.text(panelX + panelW / 2, cy,
 			`${this.gameState.kills} KILLS`,
-			{ fontFamily: '"Press Start 2P", monospace', fontSize: '28px', color: T.phaserText, resolution: 3 }
+			{ fontFamily: '"Press Start 2P", monospace', fontSize: '42px', color: T.phaserText, resolution: 3 }
 		).setOrigin(0.5, 0).setDepth(D + 2).setScrollFactor(0);
-		cy += 44;
-
-		this.add.text(panelX + panelW / 2, cy, 'session terminated',
-			{ ...monoSm, color: '#888888' }
-		).setOrigin(0.5, 0).setDepth(D + 2).setScrollFactor(0);
-		cy += 28;
+		cy += 60;
 
 		// Divider
 		gfx.lineStyle(1, 0x30363d, 1);
-		gfx.lineBetween(px, cy, panelX + panelW - 20, cy);
-		cy += 14;
+		gfx.lineBetween(px, cy, panelX + panelW - 30, cy);
+		cy += 20;
 
 		// Tower event log header
-		this.add.text(px, cy, 'TOWER LOG', { ...monoSm, color: '#e5c07b', fontStyle: 'bold' })
+		this.add.text(px, cy, 'SYSTEM LOGS', { fontFamily: '"Press Start 2P", monospace', color: T.phaserWarning, fontStyle: 'bold', fontSize: '20px', resolution: 3 })
 			.setOrigin(0, 0).setDepth(D + 2).setScrollFactor(0);
-		this.add.text(panelX + panelW - 20, cy, `git log --diff-filter=CD towers`,
-			{ ...monoSm, color: '#3b4252' }
-		).setOrigin(1, 0).setDepth(D + 2).setScrollFactor(0);
-		cy += 22;
+		cy += 35;
 
-		// Pull last 6 entries (most recent first)
-		const logEntries = this.towerLog.slice(-6).reverse();
+		// Pull last 5 entries (most recent first) - reduced count to fit larger text
+		const logEntries = this.towerLog.slice(-5).reverse();
 		if (logEntries.length === 0) {
-			this.add.text(px + 4, cy, 'no tower events recorded',
+			this.add.text(px + 4, cy, 'no events recorded',
 				{ ...monoSm, color: '#3b4252' }
 			).setOrigin(0, 0).setDepth(D + 2).setScrollFactor(0);
-			cy += 20;
+			cy += 25;
 		} else {
 			for (const entry of logEntries) {
 				const timeStr = this.formatTime(entry.ts);
 				let prefix: string, msgColor: string, msg: string;
 				if (entry.kind === 'create') {
-					prefix = '+ create';
+					prefix = '+';
 					msgColor = '#a3be8c';
-					msg = `${entry.name}  at col:${entry.col} row:${entry.row}`;
+					msg = `CREATE ${entry.name}`;
 				} else if (entry.kind === 'destroy') {
-					prefix = '- destroy';
+					prefix = '-';
 					msgColor = '#bf616a';
-					msg = `${entry.name}  destroyed by enemy`;
+					msg = `LOST   ${entry.name}`;
 				} else {
-					prefix = '~ edit';
+					prefix = '~';
 					msgColor = '#ebcb8b';
-					msg = `${entry.name}  deleted via buffer edit`;
+					msg = `EDIT   ${entry.name}`;
 				}
-				this.add.text(px, cy, timeStr,
-					{ ...monoSm, color: '#3b4252' }
-				).setOrigin(0, 0).setDepth(D + 2).setScrollFactor(0);
-				this.add.text(px + 58, cy, prefix,
-					{ ...monoSm, color: msgColor }
-				).setOrigin(0, 0).setDepth(D + 2).setScrollFactor(0);
-				this.add.text(px + 152, cy, msg,
-					{ ...monoSm, color: '#d8dee9' }
-				).setOrigin(0, 0).setDepth(D + 2).setScrollFactor(0);
-				cy += 20;
-			}
-		}
-		cy += 6;
-
-		// Divider
-		gfx.lineBetween(px, cy, panelX + panelW - 20, cy);
-		cy += 14;
-
-		// Leaderboard header
-		this.add.text(px, cy, 'TOP SCORES', { ...monoSm, color: '#e5c07b', fontStyle: 'bold' })
-			.setOrigin(0, 0).setDepth(D + 2).setScrollFactor(0);
-		this.add.text(panelX + panelW - 20, cy, 'git log --oneline scores',
-			{ ...monoSm, color: '#3b4252' }
-		).setOrigin(1, 0).setDepth(D + 2).setScrollFactor(0);
-		cy += 22;
-
-		try {
-			const response = await fetch(`${import.meta.env.VITE_API_URL}/scores`);
-			const topScores: any[] = await response.json();
-			const top5 = topScores.slice(0, 5);
-			const medals = ['★', '○', '○', '·', '·'];
-			const rankColors = ['#ebcb8b', '#b48ead', '#88c0d0', '#4c566a', '#4c566a'];
-			for (let i = 0; i < top5.length; i++) {
-				const e = top5[i];
-				const hash = e._id ? e._id.slice(-7) : Math.random().toString(16).slice(2, 9);
-				this.add.text(px, cy, `${medals[i]} ${hash}`, { ...monoSm, color: rankColors[i] })
+				
+				this.add.text(px, cy, timeStr, { ...monoSm, color: '#3b4252' })
 					.setOrigin(0, 0).setDepth(D + 2).setScrollFactor(0);
-				this.add.text(px + 120, cy, e.playerName.padEnd(10, ' '),
-					{ ...monoSm, color: '#d8dee9' }
-				).setOrigin(0, 0).setDepth(D + 2).setScrollFactor(0);
-				this.add.text(px + 240, cy, `+${e.score} kills`,
-					{ ...monoSm, color: i === 0 ? '#bf616a' : '#a3be8c' }
-				).setOrigin(0, 0).setDepth(D + 2).setScrollFactor(0);
-				cy += 20;
+				this.add.text(px + 80, cy, prefix, { ...monoSm, color: msgColor })
+					.setOrigin(0, 0).setDepth(D + 2).setScrollFactor(0);
+				this.add.text(px + 120, cy, msg, { ...monoSm, color: '#d8dee9' })
+					.setOrigin(0, 0).setDepth(D + 2).setScrollFactor(0);
+				cy += 25;
 			}
-		} catch {
-			this.add.text(px, cy, 'could not reach remote — no scores loaded',
-				{ ...monoSm, color: '#4c566a' }
-			).setOrigin(0, 0).setDepth(D + 2).setScrollFactor(0);
 		}
-
-		// ── Hint at bottom of panel ────────────────────────────────────────
-		const hintY = panelY + panelH - 34;
-		this.add.text(panelX + panelW / 2, hintY,
-			':w <your name>   save & quit     |     :q   quit without saving',
-			{ ...monoSm, color: '#3b4252', align: 'center' }
-		).setOrigin(0.5, 0).setDepth(D + 2).setScrollFactor(0);
-
-		// ── Command bar ───────────────────────────────────────────────────
+		
+		// ── Command bar (Show immediately) ────────────────────────────────
 		this.gameOverCmdBg.setVisible(true);
 		this.gameOverCmdBorder.setVisible(true);
 		this.gameOverCmdLine.setVisible(true);
 		this.gameOverCmdCursor.setVisible(true);
 		this.gameOverStatusText.setVisible(true);
 		this.updateGameOverCmdLine();
+
+		// ── Hint at bottom of panel ────────────────────────────────────────
+		const isGuest = !(window as any).googlePlayerName;
+		const hintY = panelY + panelH - 30;
+		const hintText = isGuest
+			? ':w <name> save & restart  |  :wq <name> save & quit'
+			: ':w save & restart  |  :wq save & quit  |  :q! quit';
+
+		this.add.text(panelX + panelW / 2, hintY, hintText,
+			{ fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: '#3b4252', align: 'center', resolution: 3 }
+		).setOrigin(0.5, 1).setDepth(D + 2).setScrollFactor(0);
 	}
 
 	private async saveScoreAndQuit(customName?: string) {
+		await this.submitScore(customName);
+		this.quitToDashboard();
+	}
+
+	private async saveScoreAndRestart(customName?: string) {
+		await this.submitScore(customName);
+		this.scene.restart();
+	}
+
+	private async submitScore(customName?: string) {
 		this.gameOverCmdLine.setText('writing...').setColor('#ebcb8b');
 		this.gameOverCmdCursor.setVisible(false);
-		let playerName = customName || (window as any).googlePlayerName || "GUEST";
-		playerName = playerName.substring(0, 10).toUpperCase();
+
+		let finalName = customName || (window as any).googlePlayerName || 'GUEST';
+		finalName = finalName.substring(0, 10).toUpperCase();
+
 		try {
 			await fetch(`${import.meta.env.VITE_API_URL}/scores`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ playerName, score: this.gameState.kills })
+				body: JSON.stringify({
+					playerName: finalName,
+					score: this.gameState.kills,
+					time: this.gameState.elapsedSeconds
+				})
 			});
 		} catch (e) {
-			console.error('Save failed', e);
+			console.error('Failed to save score', e);
 		}
-		this.quitToDashboard();
 	}
 
 	private quitToDashboard() {
@@ -709,10 +756,10 @@ export class Game extends Scene {
 
 
 
-	// ---- Clipboard UI ----
-	private updateClipboardUI(): void {
+	// ---- Registers UI ----
+	private updateRegistersUI(): void {
 		const T = THEMES.minimal;
-		const clipboard = this.towerSystem.clipboard;
+		const clipboardSystem = this.towerSystem.clipboard;
 		const cam = this.cameras.main;
 		const clipboardPanelWidth = 320;
 		const clipboardX = cam.width - clipboardPanelWidth;
@@ -723,43 +770,133 @@ export class Game extends Scene {
 		}
 		this.clipboardEntries = [];
 
-		// Show clipboard entries with better formatting
-		const entries = clipboard.getClipboard();
+		const unnamed = clipboardSystem.getUnnamed();
+		const named = clipboardSystem.getRegisters();
 		let y = 70;
 
-		if (entries.length === 0) {
+		// Render Unnamed Register (")
+		if (unnamed) {
+			const cost = clipboardSystem.getEntryCost(unnamed);
+			const statStr = cost > 0 ? ` (${cost}E)` : '';
+			const nameText = this.add.text(clipboardX + 20, y,
+				`[.] ${unnamed.towerType.name}${statStr}`,
+				{ fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: T.phaserAccent }
+			);
+			nameText.setOrigin(0, 0).setScrollFactor(0).setDepth(42);
+			this.clipboardEntries.push(nameText);
+
+			const pLines = unnamed.towerType.pattern;
+			for (let r = 0; r < pLines.length; r++) {
+				const lineText = this.add.text(clipboardX + 20, y + 20 + (r * 10), pLines[r], {
+					fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: '#ffffff'
+				});
+				lineText.setOrigin(0, 0).setScrollFactor(0).setDepth(42);
+				this.clipboardEntries.push(lineText);
+			}
+			y += 20 + (pLines.length * 10) + 30;
+		}
+
+		// Render Named Registers (a-z)
+		for (const [reg, entry] of Array.from(named.entries()).sort()) {
+			const cost = clipboardSystem.getEntryCost(entry);
+			const statStr = cost > 0 ? ` (${cost}E)` : '';
+
+			const nameText = this.add.text(clipboardX + 20, y,
+				`[${reg}] ${entry.towerType.name}${statStr}`,
+				{ fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: T.phaserTextDim }
+			);
+			nameText.setOrigin(0, 0).setScrollFactor(0).setDepth(42);
+			this.clipboardEntries.push(nameText);
+
+			const pLines = entry.towerType.pattern;
+			for (let r = 0; r < pLines.length; r++) {
+				const lineText = this.add.text(clipboardX + 20, y + 20 + (r * 10), pLines[r], {
+					fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: '#888888'
+				});
+				lineText.setOrigin(0, 0).setScrollFactor(0).setDepth(42);
+				this.clipboardEntries.push(lineText);
+			}
+
+			y += 20 + (pLines.length * 10) + 30;
+		}
+
+		if (!unnamed && named.size === 0) {
 			const noEntries = this.add.text(clipboardX + 10, y,
-				'No towers copied yet!\n\nDefeat enemies to\nunlock copy ability.',
+				'No registers used yet!\n\nDefeat enemies to\nunlock copy ability.',
 				{ fontFamily: '"Press Start 2P", monospace', fontSize: '8px', color: '#666666', wordWrap: { width: clipboardPanelWidth - 20, useAdvancedWrap: true } }
 			);
 			noEntries.setOrigin(0, 0).setScrollFactor(0).setDepth(42);
 			this.clipboardEntries.push(noEntries);
-		} else {
-			for (let i = 0; i < entries.length; i++) {
-				const entry = entries[i];
+			y += 100;
+		}
 
-				const cost = clipboard.getEntryCost(entry);
-				const statStr = cost > 0 ? ` (${cost}E)` : '';
+		// COMMANDS section
+		y = Math.max(y, 400); // Ensure it's pushed down enough if no registers
+		const cmdTitle = this.add.text(clipboardX + 20, y, 'COMMANDS', {
+			fontFamily: '"Press Start 2P", monospace', fontSize: '14px', color: T.phaserText, resolution: 3
+		});
+		cmdTitle.setOrigin(0, 0).setScrollFactor(0).setDepth(42);
+		this.clipboardEntries.push(cmdTitle);
+		y += 30;
 
-				// Header (Press Start 2P font)
-				const nameText = this.add.text(clipboardX + 20, y,
-					`[${i + 1}p] ${entry.towerType.name}${statStr}`,
-					{ fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: T.phaserTextDim }
-				);
-				nameText.setOrigin(0, 0).setScrollFactor(0).setDepth(42);
-				this.clipboardEntries.push(nameText);
+		const COMMAND_GROUPS = [
+			{
+				name: 'MOTION',
+				cmds: [
+					{ k: 'hjkl', d: 'MOVE' },
+					{ k: 'w/b/e', d: 'WORD MOVE' },
+					{ k: '0/$', d: 'START/END' },
+					{ k: 'gg/G', d: 'TOP/BOTTOM' }
+				]
+			},
+			{
+				name: 'ACTION',
+				cmds: [
+					{ k: 'i/a/o', d: 'INSERT/BUILD' },
+					{ k: 'x/r', d: 'DEL/REPLACE' },
+					{ k: 'y/p', d: 'YANK/PASTE' },
+					{ k: 'v', d: 'VISUAL BLOCK' }
+				]
+			},
+			{
+				name: 'COMBOS',
+				cmds: [
+					{ k: 'd[mot]', d: 'DELETE MOTION' },
+					{ k: 'c[mot]', d: 'CHANGE MOTION' },
+					{ k: '"[a-z]', d: 'USE REGISTER' }
+				]
+			},
+			{
+				name: 'SYSTEM',
+				cmds: [
+					{ k: '/[chr]', d: 'SEARCH & TP' },
+					{ k: ':ult', d: 'ULTIMATE' },
+					{ k: ':wq', d: 'QUIT' },
+					{ k: ':lb', d: 'LEADERBOARD' }
+				]
+			}
+		];
 
-				// Pattern (Render line-by-line to force a perfectly square grid)
-				const pLines = entry.towerType.pattern;
-				for (let r = 0; r < pLines.length; r++) {
-					const lineText = this.add.text(clipboardX + 20, y + 20 + (r * 10), pLines[r], {
-						fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: '#ffffff'
-					});
-					lineText.setOrigin(0, 0).setScrollFactor(0).setDepth(42);
-					this.clipboardEntries.push(lineText);
-				}
+		for (const group of COMMAND_GROUPS) {
+			y += 10;
+			const groupHead = this.add.text(clipboardX + 20, y, group.name, {
+				fontFamily: '"Press Start 2P", monospace', fontSize: '9px', color: T.phaserTextDim, resolution: 3
+			});
+			groupHead.setOrigin(0, 0).setScrollFactor(0).setDepth(42);
+			this.clipboardEntries.push(groupHead);
+			y += 18;
 
-				y += 20 + (pLines.length * 10) + 30;
+			for (const cmd of group.cmds) {
+				const kText = this.add.text(clipboardX + 20, y, cmd.k.padEnd(8), {
+					fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: T.phaserWarning, resolution: 3
+				});
+				const dText = this.add.text(clipboardX + 105, y, cmd.d, {
+					fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: T.phaserTextDim, resolution: 3
+				});
+				kText.setOrigin(0, 0).setScrollFactor(0).setDepth(42);
+				dText.setOrigin(0, 0).setScrollFactor(0).setDepth(42);
+				this.clipboardEntries.push(kText, dText);
+				y += 18;
 			}
 		}
 	}

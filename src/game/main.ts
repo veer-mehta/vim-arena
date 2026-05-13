@@ -2,22 +2,27 @@ import { Game as MainGame } from './scenes/Game';
 import { AUTO, Game, Scale, Types } from 'phaser';
 
 const config: Types.Core.GameConfig = {
-    type: AUTO,
-    width: '100%',
-    height: '100%',
-    parent: 'game-container',
-    backgroundColor: '#111111',
-    scale: {
-        mode: Scale.RESIZE,
-        autoCenter: Scale.CENTER_BOTH
-    },
-    scene: [
-        MainGame
-    ]
+	type: AUTO,
+	width: '100%',
+	height: '100%',
+	parent: 'game-container',
+	backgroundColor: '#111111',
+	scale: {
+		mode: Scale.RESIZE,
+		autoCenter: Scale.CENTER_BOTH
+	},
+	scene: [
+		MainGame
+	],
+	render: {
+		pixelArt: true,
+		roundPixels: true,
+		antialias: false
+	}
 };
 
 const StartGame = (parent: string) => {
-    return new Game({ ...config, parent });
+	return new Game({ ...config, parent });
 };
 
 export default StartGame;

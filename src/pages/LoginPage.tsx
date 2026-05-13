@@ -45,6 +45,8 @@ export default function LoginPage() {
             if (e.key === 'Enter') {
                 const cmd = commandBuffer.trim().toLowerCase();
                 if (cmd === ':lb' || cmd === ':leaderboard') navigate('/leaderboard');
+                if (cmd === ':p' || cmd === ':play') navigate('/play');
+                if (cmd === ':db' || cmd === ':dashboard') navigate('/dashboard');
                 setCommandBuffer(''); 
                 setNavHint('');
                 setVimMode('NORMAL');
@@ -147,6 +149,7 @@ export default function LoginPage() {
                     commandBuffer={commandBuffer}
                     cmdHint={navHint}
                     transparentBg={true}
+                    gutterLineHeight={28}
                 >
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '64px' }}>
                 

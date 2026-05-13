@@ -148,9 +148,9 @@ export default function DashboardPage() {
     if (isLoading || !user) return null;
 
     let cmdHint = '';
-    if (commandBuffer.startsWith(':p')) cmdHint = 'lay \u2192 Enter Arena';
-    else if (commandBuffer.startsWith(':l')) cmdHint = 'b \u2192 Leaderboard';
-    else if (commandBuffer.startsWith(':q')) cmdHint = '! \u2192 Exit/Logout';
+    if (commandBuffer.startsWith(':p')) cmdHint = 'play → Enter Arena';
+    else if (commandBuffer.startsWith(':l')) cmdHint = 'lb → Leaderboard';
+    else if (commandBuffer.startsWith(':q')) cmdHint = 'q! > Quit/Logout';
 
     return (
         <VimLayout
@@ -161,6 +161,7 @@ export default function DashboardPage() {
             filename="dashboard.html [RO]"
             statusShortcuts="j/k · G/gg · :play · :lb"
             bodyRef={bodyRef}
+            gutterLineHeight={28}
         >
             <NavBar activePage="dashboard" />
 
@@ -191,15 +192,18 @@ export default function DashboardPage() {
                     <h2 style={{ fontSize: '18px', letterSpacing: '4px', color: 'var(--text)', marginBottom: '48px', fontFamily: '"Press Start 2P", monospace' }}>HOW TO PLAY</h2>
 
                     <div style={{ marginBottom: '64px' }}>
-                        <h3 style={{ fontSize: '11px', color: 'var(--text-dim)', letterSpacing: '2px', marginBottom: '24px' }}>NAVIGATION</h3>
+                        <h3 style={{ fontSize: '11px', color: 'var(--text-dim)', letterSpacing: '2px', marginBottom: '24px' }}>MOTION & ACTION</h3>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1px', background: 'var(--border)' }}>
                             {[
-                                { k: 'h j k l', d: 'Standard Vim movement' },
-                                { k: 'i / a', d: 'Enter INSERT mode to build' },
-                                { k: 'ESC', d: 'Return to NORMAL mode' },
-                                { k: 'v / y', d: 'Select and Copy towers' },
-                                { k: '[N]p', d: 'Paste tower from slot N' },
-                                { k: 'x / dd', d: 'Remove content' },
+                                { k: 'hjkl / wbe', d: 'Basic & Word Movement' },
+                                { k: '0 / $', d: 'Line Start / End' },
+                                { k: 'gg / G', d: 'Top / Bottom jump' },
+                                { k: 'i / a / o', d: 'Insert mode to Build' },
+                                { k: 'ESC', d: 'Return to Normal mode' },
+                                { k: 'v / y / p', d: 'Visual / Yank / Paste' },
+                                { k: '"[a-z]', d: 'Use specific register' },
+                                { k: 'x / d[mot]', d: 'Delete Char / Motion' },
+                                { k: 'r', d: 'Replace single character' },
                             ].map(item => (
                                 <div key={item.k} style={{ background: 'var(--bg)', padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <code style={{ color: 'var(--yellow)', fontSize: '10px', fontFamily: '"Press Start 2P", monospace' }}>{item.k}</code>
@@ -210,13 +214,12 @@ export default function DashboardPage() {
                     </div>
 
                     <div style={{ marginBottom: '64px' }}>
-                        <h3 style={{ fontSize: '11px', color: 'var(--text-dim)', letterSpacing: '2px', marginBottom: '24px' }}>UNITS</h3>
+                        <h3 style={{ fontSize: '11px', color: 'var(--text-dim)', letterSpacing: '2px', marginBottom: '24px' }}>ARENA UNITS</h3>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '24px' }}>
                             {[
                                 { n: 'SNIPER', p: '  |  \n  •  \n / \\ ', s: 'Long range single target' },
                                 { n: 'RAPID', p: ' / \\ \n  •  \n \\ / ', s: 'Fast fire, short range' },
-                                { n: 'WALL', p: '[===]', s: 'High health blocker' },
-                                { n: 'PULSE', p: '  *  \n * * \n* O *\n * * \n  *  ', s: 'Area of effect splash' },
+                                { n: 'PULSE', p: '  *  \n * * \n* O *\n * * \n  *  ', s: 'Area splash damage' },
                             ].map(t => (
                                 <div key={t.n} style={{ padding: '24px', border: '1px solid var(--border)', borderRadius: '2px' }}>
                                     <div style={{ fontSize: '9px', color: 'var(--text-dim)', marginBottom: '16px', fontFamily: '"Press Start 2P", monospace' }}>{t.n}</div>
@@ -229,13 +232,14 @@ export default function DashboardPage() {
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '64px' }}>
                         <div>
-                            <h3 style={{ fontSize: '11px', color: 'var(--text-dim)', letterSpacing: '2px', marginBottom: '24px' }}>COMMANDS</h3>
+                            <h3 style={{ fontSize: '11px', color: 'var(--text-dim)', letterSpacing: '2px', marginBottom: '24px' }}>ARENA COMMANDS</h3>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                                 {[
-                                    { c: ':play', d: 'Enter the Arena' },
-                                    { c: ':wq', d: 'Execute Ultimate (20 Energy)' },
-                                    { c: ':q!', d: 'Quit to Dashboard' },
-                                    { c: ':w NAME', d: 'Submit score to records' },
+                                    { c: '/[query]', d: 'Search & Teleport' },
+                                    { c: ':ult', d: 'Execute Ultimate (20 Energy)' },
+                                    { c: ':wq', d: 'Save & Quit Arena' },
+                                    { c: ':lb', d: 'View Global Leaderboard' },
+                                    { c: ':[mot]...', d: 'See sidebar for full list' },
                                 ].map(item => (
                                     <div key={item.c} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border)' }}>
                                         <code style={{ color: 'var(--yellow)', fontSize: '10px', fontFamily: '"Press Start 2P", monospace' }}>{item.c}</code>

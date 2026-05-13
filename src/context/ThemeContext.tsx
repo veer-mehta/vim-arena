@@ -33,6 +33,7 @@ export interface Theme {
     phaserDanger:   string;
     phaserSuccess:  string;
     phaserWarning:  string;
+    phaserWarningNum: number;
     phaserAccentNum:  number;
     phaserDangerNum:  number;
     phaserSuccessNum: number;
@@ -68,6 +69,7 @@ export const THEMES: Record<ThemeName, Theme> = {
         phaserDanger:   '#b32d2d',
         phaserSuccess:  '#e6b800',
         phaserWarning:  '#e6b800',
+        phaserWarningNum: 0xe6b800,
         phaserAccentNum:  0xb32d2d,
         phaserDangerNum:  0xb32d2d,
         phaserSuccessNum: 0xe6b800,

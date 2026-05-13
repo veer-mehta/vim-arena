@@ -9,7 +9,6 @@ export interface TowerType {
 	readonly color: number;           // hex tint for HP bar
 	readonly scoreValue: number;      // score per enemy kill
 	readonly pattern: string[];       // multi-character pattern
-	readonly isWall?: boolean;        // true if this is just an environmental wall
 	readonly isAoe?: boolean;         // true if attacks deal AoE damage
 }
 
@@ -45,21 +44,6 @@ export const TOWER_TYPES: Record<string, TowerType> = {
 			' / \\ ',
 			'  •  ',
 			' \\ / '
-		]
-	},
-	'wall': {
-		char: '[',
-		name: 'Wall Tower',
-		maxHp: 20,
-		damage: 0,
-		range: 0,
-		fireRate: 0,
-		projectileSpeed: 0,
-		color: 0x404040,      // Gray
-		scoreValue: 5,
-		isWall: true,
-		pattern: [
-			'[===]'
 		]
 	},
 	'pulse': {

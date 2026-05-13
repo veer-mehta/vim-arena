@@ -10,6 +10,7 @@ export class VimEngine {
 	public pendingAction: 'r' | 'f' | 'F' | 't' | 'T' | 'g' | null = null;
 	public visualStart: { col: number; row: number } | null = null;
 	public commandBuffer: string = '';
+	public pendingRegister: string | null = null;
 
 	// hjkl keys currently held — enables diagonal movement on simultaneous press
 	private pressedMovementKeys: Set<string> = new Set();
@@ -27,11 +28,17 @@ export class VimEngine {
 	public onRenderAll?: () => void;
 	public onCursorMoved?: () => void;
 	public onStatusUpdate?: (left: string, right: string) => void;
-	public onPaste?: (row: number, col: number, index: number) => void;
-	public onYank?: (pattern: string[]) => void;
+	public onPaste?: (row: number, col: number, register: string) => void;
+	public onYank?: (pattern: string[], register: string) => void;
 	public onQuit?: () => void;
 	public onLeaderboard?: () => void;
 	public onCommand?: (cmd: string) => void;
+
+	// Educational hooks for CombatSystem
+	public onAction?: (action: 'delete' | 'change' | 'yank', start: { row: number; col: number }, end: { row: number; col: number }) => void;
+	public onMotion?: (type: string, from: { row: number; col: number }, to: { row: number; col: number }) => void;
+	public onSearch?: (query: string) => void;
+	public onEnergyCost?: (amount: number) => boolean;
 
 	public handleKeyDown(event: KeyboardEvent): void {
 		if (event.key === 'Escape') {
@@ -85,9 +92,12 @@ export class VimEngine {
 		if (event.key === 'Enter') {
 			if (this.onCommand) this.onCommand(this.commandBuffer);
 
-			if      (this.commandBuffer === ':wq') this.onUltimate?.();
-			else if (this.commandBuffer === ':db')  this.onQuit?.();
+			if      (this.commandBuffer === ':ultimate' || this.commandBuffer === ':ult') this.onUltimate?.();
+			else if (this.commandBuffer === ':wq' || this.commandBuffer === ':q!' || this.commandBuffer === ':db')  this.onQuit?.();
 			else if (this.commandBuffer === ':lb')  this.onLeaderboard?.();
+			else if (this.commandBuffer.startsWith('/')) {
+				this.onSearch?.(this.commandBuffer.substring(1));
+			}
 			this.commandBuffer = '';
 			this.setMode('NORMAL');
 		} else if (event.key === 'Backspace') {
@@ -105,6 +115,22 @@ export class VimEngine {
 
 	private handleNormalMode(event: KeyboardEvent): void {
 		const key = event.key;
+
+		if (this.pendingRegister === '"') {
+			if (/^[a-z]$/.test(key)) {
+				this.pendingRegister = key;
+				this.updateStatusBar();
+				return;
+			} else {
+				this.pendingRegister = null;
+			}
+		}
+
+		if (key === '"') {
+			this.pendingRegister = '"';
+			this.updateStatusBar();
+			return;
+		}
 
 		if (this.pendingAction === 'r') {
 			if (key.length === 1 && !event.ctrlKey) {
@@ -178,8 +204,9 @@ export class VimEngine {
 
 		switch (key) {
 			case ':':
+			case '/':
 				this.setMode('COMMAND');
-				this.commandBuffer = ':';
+				this.commandBuffer = key;
 				clearState = false;
 				break;
 
@@ -315,11 +342,34 @@ export class VimEngine {
 						}
 					}
 					this.onRenderAll?.();
+					this.onAction?.(key === 'c' ? 'change' : 'delete', { row: sr, col: sc }, { row: er, col: ec });
 					this.cursorRow = sr;
 					this.cursorCol = sc;
 					this.setMode(key === 'c' ? 'INSERT' : 'NORMAL');
 				} else if (this.pendingOperator === key) {
 					const viewport = this.getViewport ? this.getViewport() : null;
+					let totalToDelete = 0;
+					for (let i = 0; i < count; i++) {
+						const row = this.cursorRow + i;
+						if (row < this.lines.length) {
+							const line = this.lines[row] || '';
+							if (viewport) {
+								const start = Math.max(0, viewport.startCol);
+								const end = Math.min(line.length, viewport.endCol);
+								totalToDelete += Math.max(0, end - start);
+							} else {
+								totalToDelete += line.length;
+							}
+						}
+					}
+
+					if (this.onEnergyCost && !this.onEnergyCost(totalToDelete)) {
+						this.pendingOperator = null;
+						this.commandCount = 0;
+						this.updateStatusBar();
+						return;
+					}
+
 					for (let i = 0; i < count; i++) {
 						const row = this.cursorRow + i;
 						if (row < this.lines.length) {
@@ -337,6 +387,7 @@ export class VimEngine {
 							}
 						}
 					}
+					this.onAction?.(key === 'c' ? 'change' : 'delete', { row: this.cursorRow, col: 0 }, { row: this.cursorRow + count - 1, col: 999 });
 					this.onRenderAll?.();
 					if (key === 'c') {
 						this.cursorCol = 0;
@@ -362,7 +413,8 @@ export class VimEngine {
 						const line = (this.lines[r] || '').padEnd(ec + 1, ' ');
 						pattern.push(line.slice(sc, ec + 1));
 					}
-					this.onYank?.(pattern);
+					this.onYank?.(pattern, this.pendingRegister || '"');
+					this.pendingRegister = null;
 					this.setMode('NORMAL');
 				} else if (this.pendingOperator === key) {
 					this.pendingOperator = null;
@@ -375,7 +427,14 @@ export class VimEngine {
 				break;
 
 			case 'p':
-				this.onPaste?.(this.cursorRow, this.cursorCol, Math.max(0, this.commandCount - 1));
+				this.onPaste?.(this.cursorRow, this.cursorCol + 1, this.pendingRegister || '"');
+				this.pendingRegister = null;
+				this.updateStatusBar();
+				break;
+			case 'P':
+				this.onPaste?.(this.cursorRow, this.cursorCol, this.pendingRegister || '"');
+				this.pendingRegister = null;
+				this.updateStatusBar();
 				break;
 
 			case 'h':
@@ -410,6 +469,41 @@ export class VimEngine {
 				}
 
 				if (this.pendingOperator === 'd' || this.pendingOperator === 'c') {
+					let totalToDelete = 0;
+					const op = this.pendingOperator;
+					if (startRow === this.cursorRow) {
+						const c1 = Math.min(startCol, this.cursorCol);
+						let c2 = Math.max(startCol, this.cursorCol);
+						if (key === 'e' || key === '$' || key === 'l') c2++;
+						const line = this.lines[startRow] || '';
+						totalToDelete = Math.max(0, Math.min(c2, line.length) - c1);
+					} else {
+						const minRow = Math.min(startRow, this.cursorRow);
+						const maxRow = Math.max(startRow, this.cursorRow);
+						for (let r = minRow; r <= maxRow; r++) {
+							const line = this.lines[r] || '';
+							let c1 = 0, c2 = line.length;
+							if (r === startRow)      { if (startRow < this.cursorRow) c1 = startCol; else c2 = startCol; }
+							if (r === this.cursorRow) { if (this.cursorRow < startRow) c1 = this.cursorCol; else c2 = this.cursorCol; }
+							if (r === this.cursorRow && (key === 'e' || key === '$' || key === 'l')) c2++;
+							totalToDelete += Math.max(0, Math.min(c2, line.length) - c1);
+						}
+					}
+
+					if (this.onEnergyCost && !this.onEnergyCost(totalToDelete)) {
+						this.pendingOperator = null;
+						this.commandCount = 0;
+						// Reset cursor position to where it was
+						this.cursorCol = startCol;
+						this.cursorRow = startRow;
+						this.updateStatusBar();
+						return;
+					}
+
+					this.onAction?.(op === 'c' ? 'change' : 'delete', 
+						{ row: Math.min(startRow, this.cursorRow), col: Math.min(startCol, this.cursorCol) },
+						{ row: Math.max(startRow, this.cursorRow), col: Math.max(startCol, this.cursorCol) }
+					);
 					if (startRow === this.cursorRow) {
 						const c1 = Math.min(startCol, this.cursorCol);
 						let c2 = Math.max(startCol, this.cursorCol);
@@ -447,6 +541,8 @@ export class VimEngine {
 					}
 					if (this.pendingOperator === 'c') this.setMode('INSERT');
 					this.pendingOperator = null;
+				} else {
+					this.onMotion?.(key, { row: startRow, col: startCol }, { row: this.cursorRow, col: this.cursorCol });
 				}
 				break;
 			}
@@ -564,6 +660,7 @@ export class VimEngine {
 		} else {
 			left = `-- ${this.mode} --`;
 			if (this.commandCount > 0)   left += `  ${this.commandCount}`;
+			if (this.pendingRegister)     left += ` "${this.pendingRegister}`;
 			if (this.pendingOperator)     left += this.pendingOperator;
 		}
 		this.onStatusUpdate?.(left, `${this.cursorRow + 1},${this.cursorCol + 1}`);

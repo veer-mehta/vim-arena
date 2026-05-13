@@ -27,3 +27,34 @@ dist-ssr
 
 
 vim-arena.code-workspace
+
+
+
+Since this is a Vim-themed game, the most interesting units should probably play with the core concepts of text editing and automation. Here are some "Vim-Logic" inspired ideas to replace the passive Wall:
+
+### 1. The Macro Repeater (`q`)
+*   **Concept**: It "records" your actions. 
+*   **Mechanic**: Whenever you perform a powerful **Deletion Blast** (like `dd` or `d$`) near this tower, it saves that command. Every few seconds, it automatically triggers that exact same blast in its own range.
+*   **Why it's cool**: It automates your own skill. If you execute a perfect high-damage deletion, the tower will keep replaying that "macro" for you.
+
+### 2. The Syntax Highlighter (`#`)
+*   **Concept**: It "tags" enemies for easier targeting.
+*   **Mechanic**: It fires a non-damaging beam that forces a **Label** onto any enemy it hits (e.g., it turns a normal bug into an `'a'` bug). 
+*   **Why it's cool**: It sets up perfect targets for your **Search & Teleport** power. You can place these to "prepare" enemies so you can zip between them instantly.
+
+### 3. The Undo Pylon (`u`)
+*   **Concept**: Reversing progress.
+*   **Mechanic**: When an enemy touches this pylon, it is "undone"—teleported back to the edge of the screen and its health is reset.
+*   **Why it's cool**: It acts as a powerful defensive reset, giving you more time to deal with a wave that has gotten too close.
+
+### 4. The Dot Operator (`.`)
+*   **Concept**: Repeating the last action.
+*   **Mechanic**: It acts as a "buffer" for your energy. While you are standing near it, your next Vim power (Deletion or Teleport) costs **0 energy**, but then the tower goes on a long cooldown.
+*   **Why it's cool**: It allows for "free" big plays if you position yourself correctly.
+
+### 5. The Sed-Stream (`s`)
+*   **Concept**: Search and Replace.
+*   **Mechanic**: It fires a "Replace" beam. If it hits a high-HP enemy, it replaces them with a low-HP enemy of a different type.
+*   **Why it's cool**: It's a "transmutation" tower that effectively nerfs incoming threats.
+
+**Which of these sounds like the best direction to you? (I personally think the Macro Repeater or the Syntax Highlighter would add the most depth!)**

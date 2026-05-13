@@ -61,8 +61,8 @@ export class Tower {
 
         // Build one Phaser Text per line of the pattern
         for (let i = 0; i < type.pattern.length; i++) {
-            const x = gutterWidth + startCol * fontWidth;
-            const y = (startRow + i) * fontHeight;
+            const x = Math.floor(gutterWidth + startCol * fontWidth);
+            const y = Math.floor((startRow + i) * fontHeight);
             const t = scene.add.text(x, y, type.pattern[i], {
                 fontFamily: '"Press Start 2P", monospace',
                 fontSize: `${fontHeight}px`,

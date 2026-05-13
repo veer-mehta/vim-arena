@@ -65,7 +65,9 @@ export default function LeaderboardPage() {
     const cmdHint = useMemo(() => {
         if (isSearch) return `FIND: "${searchQuery}" [${displayedScores.length}]`;
         if (commandBuffer.startsWith(':p')) return 'PLAY \u2192 START';
-        if (commandBuffer.startsWith(':d') || commandBuffer.startsWith(':q')) return 'BACK \u2192 DASHBOARD';
+        if (commandBuffer.startsWith(':d')) return 'BACK \u2192 DASHBOARD';
+        if (commandBuffer.startsWith(':q!')) return 'EXIT \u2192 LOGOUT';
+        if (commandBuffer.startsWith(':q')) return 'BACK \u2192 DASHBOARD';
         return '';
     }, [commandBuffer, isSearch, searchQuery, displayedScores.length]);
 
@@ -83,8 +85,20 @@ export default function LeaderboardPage() {
             if (e.key === 'Enter') {
                 if (curIsSearch) return;
                 const cmd = cur.trim().toLowerCase();
-                if (cmd === ':play') navigate('/play');
-                else if (cmd === ':db' || cmd === ':dashboard' || cmd === ':q') navigate('/dashboard');
+                
+                if (cmd === ':play') {
+                    navigate('/play');
+                } else if (cmd === ':db' || cmd === ':dashboard') {
+                    navigate('/dashboard');
+                } else if (cmd === ':q!') {
+                    logout();
+                    navigate('/', { replace: true });
+                } else if (cmd === ':q') {
+                    navigate('/dashboard');
+                } else if (cmd === ':leaderboard' || cmd === ':lb') {
+                    // Already here, just clear
+                }
+
                 setCommandBuffer('');
                 setVimMode('NORMAL');
                 return;
@@ -129,7 +143,7 @@ export default function LeaderboardPage() {
             vimMode={vimMode}
             commandBuffer={commandBuffer}
             cmdHint={cmdHint}
-            filename="leaderboard.vim [RO]"
+            filename="leaderboard.html [RO]"
             statusShortcuts={`${displayedScores.length} records`}
             gutterLineHeight={28}
             bodyAlignItems="stretch"
