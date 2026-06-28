@@ -2,7 +2,7 @@
 
 Vim Arena is tower defense game, where you navigate, build, and defend using Vim Motions and modes.
 
-[Live Arena](https://vim-arena-five.vercel.app/)
+[Live Game](https://vim-arena-five.vercel.app/)
 
 ---
 
