@@ -1,4 +1,4 @@
-# VIM ARENA
+# Vim Arena
 
 Vim Arena is tower defense game, where you navigate, build, and defend using Vim Motions and modes.
 
@@ -6,7 +6,7 @@ Vim Arena is tower defense game, where you navigate, build, and defend using Vim
 
 ---
 
-## CORE_CONCEPT
+## Concept
 
 In **Vim Arena**, the editor's grid is physical. Every character represents a wall, a unit component, or empty space. Your efficiency as a defender is directly tied to your fluency with terminal commands.
 
@@ -16,7 +16,7 @@ In **Vim Arena**, the editor's grid is physical. Every character represents a wa
 
 ---
 
-## CONTROL_REFERENCE
+## Controls
 
 ### NORMAL MODE
 | KEY | ACTION |
@@ -39,7 +39,7 @@ In **Vim Arena**, the editor's grid is physical. Every character represents a wa
 
 ---
 
-## SYSTEM_ARCHITECTURE
+## Game Architecture
 
 Vim Arena utilizes a hybrid architecture: **React 19** for modular UI overlays and **Phaser 3** for high-performance grid rendering, driven by a custom-built **Vim Engine**.
 
@@ -55,7 +55,7 @@ src/
 
 ---
 
-## INITIALIZATION
+## Installation
 
 ### 1. ENVIRONMENT
 Set up `.env` in root:
