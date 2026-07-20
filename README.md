@@ -6,16 +6,6 @@ Vim Arena is tower defense game, where you navigate, build, and defend using Vim
 
 ---
 
-## Concept
-
-In **Vim Arena**, the editor's grid is physical. Every character represents a wall, a unit component, or empty space. Your efficiency as a defender is directly tied to your fluency with terminal commands.
-
-- **Speed is Survival**: Faster navigation translates to faster response times.
-- **Precision is Power**: Mastery of operators allows for complex battlefield manipulation.
-- **Dynamic Buffer**: The map evolves as you type, delete, and yank.
-
----
-
 ## Controls
 
 ### NORMAL MODE
