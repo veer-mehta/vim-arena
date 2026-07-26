@@ -73,7 +73,7 @@ export class BackgroundTextSystem {
             } else {
                 newLine += text[c];
                 if (text[c] !== ' ') {
-                    this.vim.backgroundCells.add(`${row},${globalCol}`);
+                    this.vim.backgroundCells.add(row * 4096 + globalCol);
                 }
             }
         }
@@ -91,20 +91,14 @@ export class BackgroundTextSystem {
     }
 
     ensureVisiblePopulated(startRow: number, endRow: number, targetCols: number): void {
-        let changed = false;
         while (this.vim.lines.length <= endRow) {
             this.vim.lines.push('');
-            changed = true;
         }
         for (let row = startRow; row <= endRow; row++) {
             const currentMax = this.generatedCols.get(row) || 0;
             if (currentMax < targetCols) {
                 this.generateSegment(row, currentMax, targetCols);
-                changed = true;
             }
-        }
-        if (changed) {
-            this.vim.onRenderAll?.();
         }
     }
 }

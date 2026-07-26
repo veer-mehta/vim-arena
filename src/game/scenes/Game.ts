@@ -7,7 +7,7 @@ import { CombatSystem } from '../systems/CombatSystem';
 import { BackgroundTextSystem } from '../systems/BackgroundTextSystem';
 import { THEMES, ThemeName } from '../../context/ThemeContext';
 
-const FONT_HEIGHT = 24;
+const FONT_HEIGHT = 20;
 const SCROLLOFF_ROWS = 5;
 const SCROLLOFF_COLS = 5;
 const HUD_HEIGHT = 30;
@@ -20,7 +20,7 @@ export class Game extends Scene {
 	private visualRect!: GameObjects.Rectangle;
 	private rowTextsBg: Map<number, GameObjects.Text> = new Map();
 	private rowTextsFg: Map<number, GameObjects.Text> = new Map();
-	private fontWidth: number;
+	private fontWidth: number = 12;
 	private firstVisibleRow: number = 0;
 	private firstVisibleCol: number = 0;
 	private lineNumbers: GameObjects.Text[] = [];
@@ -53,6 +53,9 @@ export class Game extends Scene {
 	private hudFilenameText!: GameObjects.Text;
 	private hudPosText!: GameObjects.Text;
 	private gameAreaStartX: number = 0;
+	private registersUIDirty: boolean = true;
+	private commandsBuilt: boolean = false;
+	private staticCommandEntries: GameObjects.Text[] = [];
 
 	// --- Tower event log ---
 	private towerLog: Array<{ ts: number; kind: 'create' | 'destroy' | 'edit'; name: string; col: number; row: number }> = [];
@@ -72,9 +75,19 @@ export class Game extends Scene {
 
 		// --- Measure font ---
 		this.engine = new VimEngine();
-		const tmp = this.add.text(0, 0, 'X'.repeat(50), { fontFamily: '"Press Start 2P", monospace', fontSize: `${FONT_HEIGHT}px`, resolution: 3 });
-		this.fontWidth = tmp.width / 50;
-		tmp.destroy();
+		const measure = () => {
+			const tmp = this.add.text(0, 0, 'X'.repeat(50), { fontFamily: '"Press Start 2P", monospace', fontSize: `${FONT_HEIGHT}px`, resolution: 3 });
+			this.fontWidth = tmp.width / 50;
+			tmp.destroy();
+		};
+		measure();
+		if ((document as any).fonts) {
+			(document as any).fonts.ready.then(() => {
+				measure();
+				this.updateCursorPosition();
+				this.renderText();
+			});
+		}
 
 		this.gameAreaStartX = 80;
 
@@ -108,7 +121,7 @@ export class Game extends Scene {
 		const visibleLines = Math.ceil(cam.height / FONT_HEIGHT) + 2;
 		for (let i = 0; i < visibleLines; i++) {
 			const t = this.add.text(this.gameAreaStartX - this.fontWidth - 10, i * FONT_HEIGHT, '', {
-				fontFamily: 'monospace', fontSize: `${FONT_HEIGHT}px`, color: '#444444', align: 'right', resolution: 3
+				fontFamily: '"Press Start 2P", monospace', fontSize: `${FONT_HEIGHT}px`, color: '#303642', align: 'right', resolution: 3
 			});
 			t.setOrigin(1, 0).setScrollFactor(0, 1).setDepth(50);
 			this.lineNumbers.push(t);
@@ -333,6 +346,7 @@ export class Game extends Scene {
 				event.preventDefault();
 			}
 			this.engine.handleKeyDown(event);
+			this.registersUIDirty = true;
 		});
 
 		this.input.keyboard?.on('keyup', (event: KeyboardEvent) => {
@@ -341,6 +355,7 @@ export class Game extends Scene {
 
 		// Initialize display
 		this.renderText();
+		this.registersUIDirty = true;
 		this.engine.triggerCursorMoved();
 	}
 
@@ -410,9 +425,13 @@ export class Game extends Scene {
 		this.towerSystem.update(delta);
 		this.combatSystem.update(delta, this.enemySystem.activeEnemies);
 
+		if (this.registersUIDirty) {
+			this.registersUIDirty = false;
+			this.updateRegistersUI();
+		}
+
 		this.updateHUD();
 		this.updateGutterLineNumbers();
-		this.updateRegistersUI();
 	}
 
 	// ---- Text rendering ----
@@ -451,6 +470,9 @@ export class Game extends Scene {
 				if (line[c] === ' ') {
 					bgString += ' ';
 					fgString += ' ';
+				} else if (this.towerSystem?.isPartOfTower(c, r)) {
+					bgString += ' ';
+					fgString += ' ';
 				} else if (this.engine.isBackground(r, c)) {
 					bgString += line[c];
 					fgString += ' ';
@@ -466,10 +488,10 @@ export class Game extends Scene {
 			let tBg = this.rowTextsBg.get(r);
 			if (!tBg) {
 				tBg = this.add.text(xPos, targetY, bgString, {
-					fontFamily: '"Press Start 2P", monospace', fontSize: `${FONT_HEIGHT}px`, color: T.textMuted, resolution: 1,
+					fontFamily: '"Press Start 2P", monospace', fontSize: `${FONT_HEIGHT}px`, color: '#333842', resolution: 3,
 				});
 				tBg.setOrigin(0, 0);
-				tBg.setAlpha(0.35);
+				tBg.setAlpha(0.28);
 				this.rowTextsBg.set(r, tBg);
 			} else {
 				if (tBg.text !== bgString) tBg.setText(bgString);
@@ -480,7 +502,7 @@ export class Game extends Scene {
 			let tFg = this.rowTextsFg.get(r);
 			if (!tFg) {
 				tFg = this.add.text(xPos, targetY, fgString, {
-					fontFamily: '"Press Start 2P", monospace', fontSize: `${FONT_HEIGHT}px`, color: T.phaserText, resolution: 1,
+					fontFamily: '"Press Start 2P", monospace', fontSize: `${FONT_HEIGHT}px`, color: T.phaserText, resolution: 3,
 				});
 				tFg.setOrigin(0, 0);
 				this.rowTextsFg.set(r, tFg);
@@ -494,8 +516,8 @@ export class Game extends Scene {
 
 	// --- Cursor + camera scroll ----
 	private updateCursorPosition() {
-		this.cursorRect.x = this.gameAreaStartX + this.engine.cursorCol * this.fontWidth;
-		this.cursorRect.y = this.engine.cursorRow * FONT_HEIGHT;
+		this.cursorRect.x = Math.floor(this.gameAreaStartX + this.engine.cursorCol * this.fontWidth);
+		this.cursorRect.y = Math.floor(this.engine.cursorRow * FONT_HEIGHT);
 
 		this.cursorCharText.x = this.cursorRect.x;
 		this.cursorCharText.y = this.cursorRect.y;
@@ -683,7 +705,7 @@ export class Game extends Scene {
 					msgColor = '#ebcb8b';
 					msg = `EDIT   ${entry.name}`;
 				}
-				
+
 				this.add.text(px, cy, timeStr, { ...monoSm, color: '#3b4252' })
 					.setOrigin(0, 0).setDepth(D + 2).setScrollFactor(0);
 				this.add.text(px + 80, cy, prefix, { ...monoSm, color: msgColor })
@@ -693,7 +715,7 @@ export class Game extends Scene {
 				cy += 25;
 			}
 		}
-		
+
 		// ── Command bar (Show immediately) ────────────────────────────────
 		this.gameOverCmdBg.setVisible(true);
 		this.gameOverCmdBorder.setVisible(true);
@@ -764,139 +786,138 @@ export class Game extends Scene {
 		const clipboardPanelWidth = 320;
 		const clipboardX = cam.width - clipboardPanelWidth;
 
-		// Clear old entries
-		for (const entry of this.clipboardEntries) {
-			entry.destroy();
-		}
+		for (const entry of this.clipboardEntries) entry.destroy();
 		this.clipboardEntries = [];
 
 		const unnamed = clipboardSystem.getUnnamed();
 		const named = clipboardSystem.getRegisters();
-		let y = 70;
+		let y = 50;
 
-		// Render Unnamed Register (")
 		if (unnamed) {
 			const cost = clipboardSystem.getEntryCost(unnamed);
 			const statStr = cost > 0 ? ` (${cost}E)` : '';
-			const nameText = this.add.text(clipboardX + 20, y,
+			const nameText = this.add.text(clipboardX + 16, y,
 				`[.] ${unnamed.towerType.name}${statStr}`,
-				{ fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: T.phaserAccent }
+				{ fontFamily: '"Press Start 2P", monospace', fontSize: '9px', color: T.phaserAccent, resolution: 3 }
 			);
 			nameText.setOrigin(0, 0).setScrollFactor(0).setDepth(42);
 			this.clipboardEntries.push(nameText);
 
 			const pLines = unnamed.towerType.pattern;
 			for (let r = 0; r < pLines.length; r++) {
-				const lineText = this.add.text(clipboardX + 20, y + 20 + (r * 10), pLines[r], {
-					fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: '#ffffff'
+				const lineText = this.add.text(clipboardX + 16, y + 14 + (r * 10), pLines[r], {
+					fontFamily: '"Press Start 2P", monospace', fontSize: '9px', color: '#ffffff', resolution: 3
 				});
 				lineText.setOrigin(0, 0).setScrollFactor(0).setDepth(42);
 				this.clipboardEntries.push(lineText);
 			}
-			y += 20 + (pLines.length * 10) + 30;
+			y += 14 + (pLines.length * 10) + 14;
 		}
 
-		// Render Named Registers (a-z)
 		for (const [reg, entry] of Array.from(named.entries()).sort()) {
 			const cost = clipboardSystem.getEntryCost(entry);
 			const statStr = cost > 0 ? ` (${cost}E)` : '';
 
-			const nameText = this.add.text(clipboardX + 20, y,
+			const nameText = this.add.text(clipboardX + 16, y,
 				`[${reg}] ${entry.towerType.name}${statStr}`,
-				{ fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: T.phaserTextDim }
+				{ fontFamily: '"Press Start 2P", monospace', fontSize: '9px', color: '#e6b800', resolution: 3 }
 			);
 			nameText.setOrigin(0, 0).setScrollFactor(0).setDepth(42);
 			this.clipboardEntries.push(nameText);
 
 			const pLines = entry.towerType.pattern;
 			for (let r = 0; r < pLines.length; r++) {
-				const lineText = this.add.text(clipboardX + 20, y + 20 + (r * 10), pLines[r], {
-					fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: '#888888'
+				const lineText = this.add.text(clipboardX + 16, y + 14 + (r * 10), pLines[r], {
+					fontFamily: '"Press Start 2P", monospace', fontSize: '9px', color: '#ffffff', resolution: 3
 				});
 				lineText.setOrigin(0, 0).setScrollFactor(0).setDepth(42);
 				this.clipboardEntries.push(lineText);
 			}
 
-			y += 20 + (pLines.length * 10) + 30;
+			y += 14 + (pLines.length * 10) + 14;
 		}
 
 		if (!unnamed && named.size === 0) {
-			const noEntries = this.add.text(clipboardX + 10, y,
-				'No registers used yet!\n\nDefeat enemies to\nunlock copy ability.',
-				{ fontFamily: '"Press Start 2P", monospace', fontSize: '8px', color: '#666666', wordWrap: { width: clipboardPanelWidth - 20, useAdvancedWrap: true } }
+			const noEntries = this.add.text(clipboardX + 16, y,
+				'No registers unlocked!\nDefeat enemies to copy.',
+				{ fontFamily: '"Press Start 2P", monospace', fontSize: '8px', color: '#8b949e', wordWrap: { width: clipboardPanelWidth - 32, useAdvancedWrap: true }, resolution: 3 }
 			);
 			noEntries.setOrigin(0, 0).setScrollFactor(0).setDepth(42);
 			this.clipboardEntries.push(noEntries);
-			y += 100;
+			y += 35;
 		}
 
-		// COMMANDS section
-		y = Math.max(y, 400); // Ensure it's pushed down enough if no registers
-		const cmdTitle = this.add.text(clipboardX + 20, y, 'COMMANDS', {
-			fontFamily: '"Press Start 2P", monospace', fontSize: '14px', color: T.phaserText, resolution: 3
-		});
-		cmdTitle.setOrigin(0, 0).setScrollFactor(0).setDepth(42);
-		this.clipboardEntries.push(cmdTitle);
-		y += 30;
-
-		const COMMAND_GROUPS = [
-			{
-				name: 'MOTION',
-				cmds: [
-					{ k: 'hjkl', d: 'MOVE' },
-					{ k: 'w/b/e', d: 'WORD MOVE' },
-					{ k: '0/$', d: 'START/END' },
-					{ k: 'gg/G', d: 'TOP/BOTTOM' }
-				]
-			},
-			{
-				name: 'ACTION',
-				cmds: [
-					{ k: 'i/a/o', d: 'INSERT/BUILD' },
-					{ k: 'x/r', d: 'DEL/REPLACE' },
-					{ k: 'y/p', d: 'YANK/PASTE' },
-					{ k: 'v', d: 'VISUAL BLOCK' }
-				]
-			},
-			{
-				name: 'COMBOS',
-				cmds: [
-					{ k: 'd[mot]', d: 'DELETE MOTION' },
-					{ k: 'c[mot]', d: 'CHANGE MOTION' },
-					{ k: '"[a-z]', d: 'USE REGISTER' }
-				]
-			},
-			{
-				name: 'SYSTEM',
-				cmds: [
-					{ k: '/[chr]', d: 'SEARCH & TP' },
-					{ k: ':ult', d: 'ULTIMATE' },
-					{ k: ':wq', d: 'QUIT' },
-					{ k: ':lb', d: 'LEADERBOARD' }
-				]
-			}
-		];
-
-		for (const group of COMMAND_GROUPS) {
-			y += 10;
-			const groupHead = this.add.text(clipboardX + 20, y, group.name, {
-				fontFamily: '"Press Start 2P", monospace', fontSize: '9px', color: T.phaserTextDim, resolution: 3
+		// COMMANDS section — built only once
+		if (!this.commandsBuilt) {
+			this.commandsBuilt = true;
+			let cy = Math.max(y + 12, 220);
+			const cmdTitle = this.add.text(clipboardX + 16, cy, 'COMMANDS', {
+				fontFamily: '"Press Start 2P", monospace', fontSize: '11px', color: '#ffffff', resolution: 3
 			});
-			groupHead.setOrigin(0, 0).setScrollFactor(0).setDepth(42);
-			this.clipboardEntries.push(groupHead);
-			y += 18;
+			cmdTitle.setOrigin(0, 0).setScrollFactor(0).setDepth(42);
+			this.staticCommandEntries.push(cmdTitle);
+			cy += 20;
 
-			for (const cmd of group.cmds) {
-				const kText = this.add.text(clipboardX + 20, y, cmd.k.padEnd(8), {
-					fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: T.phaserWarning, resolution: 3
+			const COMMAND_GROUPS = [
+				{
+					name: 'MODES',
+					cmds: [
+						{ k: 'ESC', d: 'NORMAL' },
+						{ k: 'i/a/o', d: 'INSERT/BUILD' },
+						{ k: 'v', d: 'VISUAL' },
+						{ k: ':', d: 'COMMAND' }
+					]
+				},
+				{
+					name: 'MOTIONS',
+					cmds: [
+						{ k: 'hjkl', d: 'MOVE' },
+						{ k: 'w/b/e', d: 'WORD MOVE' },
+						{ k: '0/$', d: 'START/END' },
+						{ k: 'gg/G', d: 'TOP/BOTTOM' }
+					]
+				},
+				{
+					name: 'EDITING',
+					cmds: [
+						{ k: 'y/p', d: 'YANK/PASTE' },
+						{ k: 'x/r', d: 'DEL/REPLACE' },
+						{ k: 'd[m]', d: 'DELETE SEG' },
+						{ k: '"[a]', d: 'USE REGISTER' }
+					]
+				},
+				{
+					name: 'SYSTEM',
+					cmds: [
+						{ k: '/[q]', d: 'SEARCH' },
+						{ k: ':ult', d: 'ULTIMATE' },
+						{ k: ':wq', d: 'SAVE & QUIT' },
+						{ k: ':lb', d: 'LEADERBOARD' }
+					]
+				}
+			];
+
+			for (const group of COMMAND_GROUPS) {
+				cy += 4;
+				const groupHead = this.add.text(clipboardX + 16, cy, group.name, {
+					fontFamily: '"Press Start 2P", monospace', fontSize: '8px', color: '#8b949e', resolution: 3
 				});
-				const dText = this.add.text(clipboardX + 105, y, cmd.d, {
-					fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: T.phaserTextDim, resolution: 3
-				});
-				kText.setOrigin(0, 0).setScrollFactor(0).setDepth(42);
-				dText.setOrigin(0, 0).setScrollFactor(0).setDepth(42);
-				this.clipboardEntries.push(kText, dText);
-				y += 18;
+				groupHead.setOrigin(0, 0).setScrollFactor(0).setDepth(42);
+				this.staticCommandEntries.push(groupHead);
+				cy += 13;
+
+				for (const cmd of group.cmds) {
+					const kText = this.add.text(clipboardX + 16, cy, cmd.k.padEnd(7), {
+						fontFamily: '"Press Start 2P", monospace', fontSize: '8px', color: '#e6b800', resolution: 3
+					});
+					const dText = this.add.text(clipboardX + 90, cy, cmd.d, {
+						fontFamily: '"Press Start 2P", monospace', fontSize: '8px', color: '#c9d1d9', resolution: 3
+					});
+					kText.setOrigin(0, 0).setScrollFactor(0).setDepth(42);
+					dText.setOrigin(0, 0).setScrollFactor(0).setDepth(42);
+					this.staticCommandEntries.push(kText, dText);
+					cy += 13;
+				}
 			}
 		}
 	}

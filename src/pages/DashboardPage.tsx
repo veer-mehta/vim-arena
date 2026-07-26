@@ -191,62 +191,75 @@ export default function DashboardPage() {
                 <div style={{ borderTop: '1px solid var(--border)', paddingTop: '64px' }}>
                     <h2 style={{ fontSize: '18px', letterSpacing: '4px', color: 'var(--text)', marginBottom: '48px', fontFamily: '"Press Start 2P", monospace' }}>HOW TO PLAY</h2>
 
-                    <div style={{ marginBottom: '64px' }}>
-                        <h3 style={{ fontSize: '11px', color: 'var(--text-dim)', letterSpacing: '2px', marginBottom: '24px' }}>MOTION & ACTION</h3>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1px', background: 'var(--border)' }}>
+                    {/* Step 1: The Goal */}
+                    <div style={{ marginBottom: '48px', background: 'var(--bg-alt)', border: '1px solid var(--border)', borderRadius: '4px', padding: '28px 32px' }}>
+                        <h3 style={{ fontSize: '11px', color: 'var(--yellow)', letterSpacing: '2px', marginBottom: '16px', fontFamily: '"Press Start 2P", monospace' }}>1. THE GOAL</h3>
+                        <p style={{ fontSize: '13px', color: 'var(--text-dim)', lineHeight: '1.8' }}>
+                            Enemies spawn from the edges and march toward your towers.
+                            Use <span style={{ color: 'var(--text)' }}>Vim commands</span> to navigate the grid, build towers, and defend.
+                            If all your towers are destroyed, the game is over.
+                        </p>
+                    </div>
+
+                    {/* Step 2: Build Your Defenses */}
+                    <div style={{ marginBottom: '48px', background: 'var(--bg-alt)', border: '1px solid var(--border)', borderRadius: '4px', padding: '28px 32px' }}>
+                        <h3 style={{ fontSize: '11px', color: 'var(--yellow)', letterSpacing: '2px', marginBottom: '24px', fontFamily: '"Press Start 2P", monospace' }}>2. BUILD YOUR DEFENSES</h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
                             {[
-                                { k: 'hjkl / wbe', d: 'Basic & Word Movement' },
-                                { k: '0 / $', d: 'Line Start / End' },
-                                { k: 'gg / G', d: 'Top / Bottom jump' },
-                                { k: 'i / a / o', d: 'Insert mode to Build' },
-                                { k: 'ESC', d: 'Return to Normal mode' },
-                                { k: 'v / y / p', d: 'Visual / Yank / Paste' },
-                                { k: '"[a-z]', d: 'Use specific register' },
-                                { k: 'x / d[mot]', d: 'Delete Char / Motion' },
-                                { k: 'r', d: 'Replace single character' },
-                            ].map(item => (
-                                <div key={item.k} style={{ background: 'var(--bg)', padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <code style={{ color: 'var(--yellow)', fontSize: '10px', fontFamily: '"Press Start 2P", monospace' }}>{item.k}</code>
-                                    <span style={{ fontSize: '12px', color: 'var(--text-dim)' }}>{item.d}</span>
+                                { key: 'hjkl', desc: 'Move your cursor around the grid' },
+                                { key: 'i', desc: 'Enter Insert mode to start building' },
+                                { key: 's / r / p / b', desc: 'Place a tower (Sniper, Rapid, Pulse, Bomb)' },
+                                { key: 'ESC', desc: 'Return to Normal mode' },
+                                { key: 'v → y → p', desc: 'Select a region, copy it, paste it elsewhere' },
+                                { key: ':ult', desc: 'Fire your Ultimate ability (costs 20 energy)' },
+                                { key: ':wq', desc: 'Save your score and quit the arena' },
+                            ].map((step, i) => (
+                                <div key={step.key} style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '20px',
+                                    padding: '12px 0',
+                                    borderBottom: i < 6 ? '1px solid var(--border)' : 'none',
+                                }}>
+                                    <code style={{
+                                        color: 'var(--yellow)',
+                                        fontSize: '13px',
+                                        fontFamily: '\'JetBrains Mono\', \'Fira Code\', monospace',
+                                        fontWeight: 'bold',
+                                        minWidth: '160px',
+                                        flexShrink: 0,
+                                    }}>{step.key}</code>
+                                    <span style={{ fontSize: '13px', color: 'var(--text-dim)', fontFamily: '\'JetBrains Mono\', monospace' }}>{step.desc}</span>
                                 </div>
                             ))}
                         </div>
                     </div>
 
-                    <div style={{ marginBottom: '64px' }}>
-                        <h3 style={{ fontSize: '11px', color: 'var(--text-dim)', letterSpacing: '2px', marginBottom: '24px' }}>ARENA UNITS</h3>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '24px' }}>
+                    {/* Step 3: Your Towers */}
+                    <div style={{ background: 'var(--bg-alt)', border: '1px solid var(--border)', borderRadius: '4px', padding: '28px 32px' }}>
+                        <h3 style={{ fontSize: '11px', color: 'var(--yellow)', letterSpacing: '2px', marginBottom: '24px', fontFamily: '"Press Start 2P", monospace' }}>3. YOUR TOWERS</h3>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '20px' }}>
                             {[
-                                { n: 'SNIPER', p: '  |  \n  •  \n / \\ ', s: 'Long range single target' },
-                                { n: 'RAPID', p: ' / \\ \n  •  \n \\ / ', s: 'Fast fire, short range' },
-                                { n: 'PULSE', p: '  *  \n * * \n* O *\n * * \n  *  ', s: 'Area splash damage' },
+                                { n: 'SNIPER', reg: '"sp', p: '  |  \n  •  \n / \\ ', s: 'Long range, single target', dmg: 1, rng: 400, spd: '1.0/s', hp: 3, cost: '9E' },
+                                { n: 'RAPID', reg: '"rp', p: ' / \\ \n  •  \n \\ / ', s: 'Fast fire, short range', dmg: 1, rng: 120, spd: '4.0/s', hp: 3, cost: '9E' },
+                                { n: 'PULSE', reg: '"pp', p: '  *  \n * * \n* O *\n * * \n  *  ', s: 'Area of effect splash', dmg: 1, rng: 250, spd: '2.5/s', hp: 4, cost: '25E' },
+                                { n: 'BOMB', reg: '"bp', p: ' (o) \n  •  \n [B] ', s: 'Slow fire, group damage', dmg: 2, rng: 220, spd: '0.5/s', hp: 4, cost: '9E' },
                             ].map(t => (
-                                <div key={t.n} style={{ padding: '24px', border: '1px solid var(--border)', borderRadius: '2px' }}>
-                                    <div style={{ fontSize: '9px', color: 'var(--text-dim)', marginBottom: '16px', fontFamily: '"Press Start 2P", monospace' }}>{t.n}</div>
-                                    <pre style={{ fontSize: '14px', color: 'var(--text)', marginBottom: '16px', lineHeight: '1.0', fontFamily: '"Press Start 2P", monospace' }}>{t.p}</pre>
-                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{t.s}</div>
+                                <div key={t.n} style={{ padding: '20px', border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--bg)', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '12px' }}>
+                                    <div style={{ fontSize: '11px', color: 'var(--text)', fontFamily: '"Press Start 2P", monospace', fontWeight: 'bold' }}>{t.n}</div>
+                                    <pre style={{ fontSize: '13px', color: 'var(--yellow)', lineHeight: '1.2', fontFamily: '\'JetBrains Mono\', \'Fira Code\', monospace', fontWeight: 'bold', margin: 0 }}>{t.p}</pre>
+                                    <code style={{ fontSize: '12px', color: 'var(--yellow)', fontFamily: '\'JetBrains Mono\', \'Fira Code\', monospace', fontWeight: 'bold', background: 'rgba(255,255,255,0.06)', padding: '4px 10px', borderRadius: '3px', border: '1px solid var(--border)' }}>{t.reg}</code>
+                                    <div style={{ fontSize: '11px', color: 'var(--text-dim)', fontFamily: '\'JetBrains Mono\', monospace' }}>{t.s}</div>
+                                    
+                                    {/* Tower Stats */}
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', width: '100%', borderTop: '1px dashed var(--border)', paddingTop: '10px', marginTop: '4px', fontSize: '11px', fontFamily: '\'JetBrains Mono\', \'Fira Code\', monospace', fontWeight: 'bold' }}>
+                                        <div style={{ color: 'var(--text-dim)', textAlign: 'left' }}>DMG: <span style={{ color: '#ffffff' }}>{t.dmg}</span></div>
+                                        <div style={{ color: 'var(--text-dim)', textAlign: 'right' }}>RNG: <span style={{ color: '#ffffff' }}>{t.rng}</span></div>
+                                        <div style={{ color: 'var(--text-dim)', textAlign: 'left' }}>SPD: <span style={{ color: '#ffffff' }}>{t.spd}</span></div>
+                                        <div style={{ color: 'var(--text-dim)', textAlign: 'right' }}>HP: <span style={{ color: '#ffffff' }}>{t.hp}</span></div>
+                                    </div>
                                 </div>
                             ))}
-                        </div>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '64px' }}>
-                        <div>
-                            <h3 style={{ fontSize: '11px', color: 'var(--text-dim)', letterSpacing: '2px', marginBottom: '24px' }}>ARENA COMMANDS</h3>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                {[
-                                    { c: '/[query]', d: 'Search & Teleport' },
-                                    { c: ':ult', d: 'Execute Ultimate (20 Energy)' },
-                                    { c: ':wq', d: 'Save & Quit Arena' },
-                                    { c: ':lb', d: 'View Global Leaderboard' },
-                                    { c: ':[mot]...', d: 'See sidebar for full list' },
-                                ].map(item => (
-                                    <div key={item.c} style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '12px', borderBottom: '1px solid var(--border)' }}>
-                                        <code style={{ color: 'var(--yellow)', fontSize: '10px', fontFamily: '"Press Start 2P", monospace' }}>{item.c}</code>
-                                        <span style={{ fontSize: '12px', color: 'var(--text-dim)' }}>{item.d}</span>
-                                    </div>
-                                ))}
-                            </div>
                         </div>
                     </div>
                 </div>

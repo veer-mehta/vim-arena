@@ -1,17 +1,16 @@
-@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&family=Press+Start+2P&display=swap');
 
-/* ─── Default theme vars (Stealth Mono) ─── */
 :root {
-    --bg:           #0d1117; /* Pitch Black */
-    --bg-alt:       #161b22; /* Gunmetal Deep */
+    --bg:           #0d1117;
+    --bg-alt:       #161b22;
     --bg-panel:     rgba(13, 17, 23, 0.8);
     --border:       rgba(255, 255, 255, 0.08);
-    --text:         #ffffff; /* Snow White */
-    --text-dim:     #8b949e; /* Gunmetal Grey */
-    --text-muted:   #484f58; /* Muted Grey */
-    --accent:       #b32d2d; /* Dull Red - Vital */
+    --text:         #ffffff;
+    --text-dim:     #8b949e;
+    --text-muted:   #484f58;
+    --accent:       #b32d2d;
     --accent-glow:  rgba(179, 45, 45, 0.2);
-    --yellow:       #e6b800; /* Crisp Yellow - Energy */
+    --yellow:       #e6b800;
     --danger:       #b32d2d;
     --success:      #e6b800;
     --warning:      #e6b800;
@@ -32,11 +31,13 @@ html, body, #root {
     background: var(--bg);
     color: var(--text);
     font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
     scrollbar-color: var(--text-muted) var(--bg);
     scrollbar-width: thin;
 }
 
-/* ─── Scrollbar ─── */
 ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -51,7 +52,6 @@ html, body, #root {
     background: var(--text-dim);
 }
 
-/* ─── Shared Page Shell ─── */
 .page {
     width: 100vw;
     height: 100vh;
@@ -62,54 +62,6 @@ html, body, #root {
     overflow: hidden;
 }
 
-/* ─── Logo ─── */
-.logo {
-    font-family: 'Press Start 2P', monospace;
-    color: var(--text);
-    letter-spacing: 4px;
-}
-
-/* ─── Utility ─── */
-.vim-comment { color: var(--text-dim); opacity: 0.8; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-style: italic; }
-.vim-string  { color: var(--text); }
-.vim-keyword { color: var(--yellow); }
-.vim-number  { color: var(--yellow); font-weight: bold; }
-
-.glass-card {
-    background: var(--bg-panel);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid var(--border);
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
-}
-
-.tactical-border {
-    position: relative;
-    border: 1px solid var(--border);
-    transition: border-color 0.3s ease;
-}
-.tactical-border::before, .tactical-border::after {
-    content: '';
-    position: absolute;
-    width: 8px;
-    height: 8px;
-    border-color: var(--yellow);
-    border-style: solid;
-    opacity: 0.3;
-    transition: opacity 0.3s ease;
-}
-.tactical-border:hover::before, .tactical-border:hover::after {
-    opacity: 1;
-}
-.tactical-border::before { top: -1px; left: -1px; border-width: 1px 0 0 1px; }
-.tactical-border::after { bottom: -1px; right: -1px; border-width: 0 1px 1px 0; }
-
-@keyframes pulse {
-    0%, 100% { opacity: 0.4; }
-    50%      { opacity: 1; }
-}
-
-/* ─── Game Container ─── */
 #game-container {
     width: 100vw;
     height: 100vh;
@@ -119,7 +71,6 @@ html, body, #root {
     display: block;
 }
 
-/* ─── Vim Interface Elements ─── */
 .vim-editor {
     width: 100vw;
     height: 100vh;

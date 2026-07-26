@@ -20,6 +20,7 @@ export class Enemy {
 
 	private body: GameObjects.Text;
 	private scene: Scene;
+	private lastPopupTime: number = 0;
 
 	constructor(scene: Scene, x: number, y: number, speed: number, maxHp: number = 1, color: number = 0xbf616a, private fontWidth: number = 10, private fontHeight: number = 20, private gutterWidth: number = 50) {
 		this.scene = scene;
@@ -35,21 +36,20 @@ export class Enemy {
 		this.body = scene.add.text(x, y, char, {
 			fontFamily: '"Press Start 2P", monospace',
 			fontSize: '14px',
-			color: '#ffffff', // White text
-			backgroundColor: '#b32d2d', // Dull Red
+			color: '#ffffff',
+			backgroundColor: '#b32d2d',
 			padding: { x: 3, y: 3 }
 		}).setOrigin(0.5).setDepth(20);
 
-		// Assign a label with 30% probability
 		if (Math.random() < 0.3) {
-			this.label = String.fromCharCode(97 + Math.floor(Math.random() * 26)); // a-z
+			this.label = String.fromCharCode(97 + Math.floor(Math.random() * 26));
 			const labelText = scene.add.text(0, -15, this.label, {
 				fontFamily: '"Press Start 2P", monospace',
 				fontSize: '10px',
 				color: '#ffff00',
 				backgroundColor: '#000000'
 			}).setOrigin(0.5);
-			(this.body as any).labelChild = labelText; // Internal reference for easier management
+			(this.body as any).labelChild = labelText;
 		}
 	}
 
@@ -64,7 +64,9 @@ export class Enemy {
 
 		this.scene.tweens.add({ targets: this.body, alpha: 0.2, duration: 50, yoyo: true });
 
-		if (amount >= 1) {
+		const now = this.scene.time.now;
+		if (amount >= 1 && now - this.lastPopupTime > 500) {
+			this.lastPopupTime = now;
 			const popup = this.scene.add.text(this.x, this.y - 10, `-${Math.floor(amount)}`, {
 				fontFamily: '"Press Start 2P", monospace', fontSize: '10px', color: '#000000', backgroundColor: '#e6b800', padding: { x: 2, y: 2 }
 			}).setOrigin(0.5).setDepth(100);

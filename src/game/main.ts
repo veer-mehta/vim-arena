@@ -15,9 +15,9 @@ const config: Types.Core.GameConfig = {
 		MainGame
 	],
 	render: {
-		pixelArt: true,
+		pixelArt: false,
 		roundPixels: true,
-		antialias: false
+		antialias: true
 	}
 };
 

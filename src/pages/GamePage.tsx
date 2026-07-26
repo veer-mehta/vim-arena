@@ -47,10 +47,14 @@ export default function GamePage() {
             height: '100%',
             parent: containerRef.current,
             backgroundColor: '#111111',
-            pixelArt: true,
             scale: {
                 mode: Scale.RESIZE,
                 autoCenter: Scale.CENTER_BOTH,
+            },
+            render: {
+                pixelArt: false,
+                roundPixels: true,
+                antialias: true
             },
             scene: [MainGame],
         };

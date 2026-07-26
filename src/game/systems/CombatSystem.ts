@@ -44,32 +44,34 @@ export class CombatSystem {
                 const row = Math.floor(e.y / ts.fontHeight);
                 if (row >= 0 && row < vim.lines.length) {
                     const line: string = vim.lines[row];
-                        // Check a 3x3 area around the enemy center to make collision more reliable
-                        const checkCols = [col, Math.floor((e.x - 5 - ts.gutterWidth) / ts.fontWidth), Math.floor((e.x + 5 - ts.gutterWidth) / ts.fontWidth)];
-                        const checkRows = [row, Math.floor((e.y - 5) / ts.fontHeight), Math.floor((e.y + 5) / ts.fontHeight)];
-                        
-                        let hit = false;
-                        for (const r of new Set(checkRows)) {
-                            if (r < 0 || r >= vim.lines.length) continue;
-                            const curLine = vim.lines[r];
-                            for (const c of new Set(checkCols)) {
-                                if (c < 0 || c >= curLine.length || curLine[c] === ' ') continue;
-                                if (this.towerSystem.isPartOfTower(c, r)) continue;
-                                if (vim.isBackground(r, c)) continue;
-                                
-                                const wasAlive = !e.isDead;
-                                e.takeDamage(1); // Increase damage to 1 so it's visible and effective
-                                vim.lines[r] = curLine.substring(0, c) + ' ' + curLine.substring(c + 1);
-                                vim.onRenderRow?.(r);
-                                if (wasAlive && e.isDead) {
-                                    this.gameState.addKill();
-                                    this.towerSystem.clipboard.onEnemyKilled();
-                                }
-                                hit = true;
-                                break;
-                            }
-                            if (hit) break;
+                const rMin = Math.max(0, Math.floor((e.y - 5) / ts.fontHeight));
+                const rMax = Math.min(vim.lines.length - 1, Math.floor((e.y + 5) / ts.fontHeight));
+                const cMin = Math.max(0, Math.floor((e.x - 5 - ts.gutterWidth) / ts.fontWidth));
+                const cMax = Math.floor((e.x + 5 - ts.gutterWidth) / ts.fontWidth);
+
+                let hit = false;
+                for (let r = rMin; r <= rMax; r++) {
+                    const curLine = vim.lines[r];
+                    if (!curLine) continue;
+                    const maxC = Math.min(curLine.length - 1, cMax);
+                    for (let c = cMin; c <= maxC; c++) {
+                        if (curLine[c] === ' ') continue;
+                        if (this.towerSystem.isPartOfTower(c, r)) continue;
+                        if (vim.isBackground(r, c)) continue;
+
+                        const wasAlive = !e.isDead;
+                        e.takeDamage(1);
+                        vim.lines[r] = curLine.substring(0, c) + ' ' + curLine.substring(c + 1);
+                        vim.onRenderRow?.(r);
+                        if (wasAlive && e.isDead) {
+                            this.gameState.addKill();
+                            this.towerSystem.clipboard.onEnemyKilled();
                         }
+                        hit = true;
+                        break;
+                    }
+                    if (hit) break;
+                }
 
                 }
             }
@@ -116,14 +118,28 @@ export class CombatSystem {
                     px += (dx / distToTarget) * nearest.speed * t;
                     py += (dy / distToTarget) * nearest.speed * t;
                 }
-                this.projectiles.push(new Projectile(this.scene, tower.worldX, tower.worldY, px, py, tower.type.projectileSpeed, tower.type.damage, tower.type.range));
+                const onKilled = () => {
+                    this.gameState.addKill();
+                    this.towerSystem.clipboard.onEnemyKilled();
+                };
+                this.projectiles.push(new Projectile(
+                    this.scene, 
+                    tower.worldX, 
+                    tower.worldY, 
+                    px, 
+                    py, 
+                    tower.type.projectileSpeed, 
+                    tower.type.damage, 
+                    tower.type.range,
+                    onKilled,
+                    tower.type.explosionRadius
+                ));
             }
         }
 
         // Update projectiles
         for (let i = this.projectiles.length - 1; i >= 0; i--) {
-            const hit = this.projectiles[i].update(delta, enemies);
-            if (hit?.isDead) { this.gameState.addKill(); this.towerSystem.clipboard.onEnemyKilled(); }
+            this.projectiles[i].update(delta, enemies);
             if (this.projectiles[i].isDead) this.projectiles.splice(i, 1);
         }
 

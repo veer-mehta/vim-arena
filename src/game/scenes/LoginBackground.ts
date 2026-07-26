@@ -25,17 +25,29 @@ export class LoginBackground extends Scene {
 
         // --- Measure font ---
         this.engine = new VimEngine();
-        const tmp = this.add.text(0, 0, 'X'.repeat(50), { fontFamily: '"Press Start 2P", monospace', fontSize: `${FONT_HEIGHT}px`, resolution: 3 });
-        this.fontWidth = tmp.width / 50;
-        tmp.destroy();
+        const measure = () => {
+            const tmp = this.add.text(0, 0, 'X'.repeat(50), { fontFamily: '"Press Start 2P", monospace', fontSize: `${FONT_HEIGHT}px`, resolution: 3 });
+            this.fontWidth = tmp.width / 50;
+            tmp.destroy();
+        };
+        measure();
 
         this.backgroundSystem = new BackgroundTextSystem(this.engine);
         
-        const gameAreaCols = Math.floor(cam.width / this.fontWidth);
-        const visibleRows = Math.floor(cam.height / FONT_HEIGHT);
-        this.backgroundSystem.populate(visibleRows + 5, gameAreaCols + 5);
+        const setup = () => {
+            const gameAreaCols = Math.floor(cam.width / this.fontWidth);
+            const visibleRows = Math.floor(cam.height / FONT_HEIGHT);
+            this.backgroundSystem.populate(visibleRows + 5, gameAreaCols + 5);
+            this.renderText();
+        };
+        setup();
 
-        this.renderText();
+        if ((document as any).fonts) {
+            (document as any).fonts.ready.then(() => {
+                measure();
+                setup();
+            });
+        }
     }
 
     update(_time: number, delta: number) {

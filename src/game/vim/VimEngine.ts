@@ -16,10 +16,10 @@ export class VimEngine {
 	private pressedMovementKeys: Set<string> = new Set();
 
 	// Cells populated by background word generation (not typed by the player)
-	public backgroundCells: Set<string> = new Set();
+	public backgroundCells: Set<number> = new Set();
 
 	public isBackground(row: number, col: number): boolean {
-		return this.backgroundCells.has(`${row},${col}`);
+		return this.backgroundCells.has(row * 4096 + col);
 	}
 
 	public getViewport?: () => { startCol: number; endCol: number; startRow: number; endRow: number };
@@ -284,7 +284,7 @@ export class VimEngine {
 				if (this.cursorCol < end) {
 					const n = end - this.cursorCol;
 					this.lines[this.cursorRow] = line.slice(0, this.cursorCol) + ' '.repeat(n) + line.slice(end);
-					for (let i = this.cursorCol; i < end; i++) this.backgroundCells.delete(`${this.cursorRow},${i}`);
+					for (let i = this.cursorCol; i < end; i++) this.backgroundCells.delete(this.cursorRow * 4096 + i);
 					this.onRenderRow?.(this.cursorRow);
 				}
 				break;
@@ -298,7 +298,7 @@ export class VimEngine {
 				if (this.cursorCol < end) {
 					const n = end - this.cursorCol;
 					this.lines[this.cursorRow] = line.slice(0, this.cursorCol) + ' '.repeat(n) + line.slice(end);
-					for (let i = this.cursorCol; i < end; i++) this.backgroundCells.delete(`${this.cursorRow},${i}`);
+					for (let i = this.cursorCol; i < end; i++) this.backgroundCells.delete(this.cursorRow * 4096 + i);
 					this.onRenderRow?.(this.cursorRow);
 				}
 				this.setMode('INSERT');
@@ -380,7 +380,7 @@ export class VimEngine {
 								if (end > start) {
 									const n = end - start;
 									this.lines[row] = line.slice(0, start) + ' '.repeat(n) + line.slice(end);
-									for (let c = start; c < end; c++) this.backgroundCells.delete(`${row},${c}`);
+									for (let c = start; c < end; c++) this.backgroundCells.delete(row * 4096 + c);
 								}
 							} else {
 								this.lines[row] = '';
@@ -511,7 +511,7 @@ export class VimEngine {
 						const line = this.lines[startRow] || '';
 						const n = Math.max(0, Math.min(c2, line.length) - c1);
 						if (n > 0) {
-							for (let i = c1; i < c1 + n; i++) this.backgroundCells.delete(`${startRow},${i}`);
+							for (let i = c1; i < c1 + n; i++) this.backgroundCells.delete(startRow * 4096 + i);
 							this.lines[startRow] = line.slice(0, c1) + ' '.repeat(n) + line.slice(c1 + n);
 							this.onRenderRow?.(startRow);
 						}
@@ -530,7 +530,7 @@ export class VimEngine {
 								if (r === this.cursorRow && (key === 'e' || key === '$' || key === 'l')) c2++;
 								const n = Math.max(0, Math.min(c2, line.length) - c1);
 								if (n > 0) {
-									for (let i = c1; i < c1 + n; i++) this.backgroundCells.delete(`${r},${i}`);
+									for (let i = c1; i < c1 + n; i++) this.backgroundCells.delete(r * 4096 + i);
 									this.lines[r] = line.slice(0, c1) + ' '.repeat(n) + line.slice(c1 + n);
 								}
 							}
@@ -565,7 +565,7 @@ export class VimEngine {
 		let line = this.lines[row] || '';
 		if (col > line.length) line = line.padEnd(col, ' ');
 		this.lines[row] = line.slice(0, col) + char + line.slice(col + 1);
-		this.backgroundCells.delete(`${row},${col}`);
+		this.backgroundCells.delete(row * 4096 + col);
 		this.onRenderRow?.(row);
 	}
 
@@ -574,7 +574,7 @@ export class VimEngine {
 		let line = this.lines[row] || '';
 		if (col > line.length) line = line.padEnd(col, ' ');
 		this.lines[row] = line.slice(0, col) + char + line.slice(col + 1);
-		this.backgroundCells.delete(`${row},${col}`);
+		this.backgroundCells.delete(row * 4096 + col);
 		this.onRenderRow?.(row);
 	}
 
@@ -583,7 +583,7 @@ export class VimEngine {
 		const line = this.lines[row] || '';
 		if (col >= line.length) return;
 		const n = Math.min(count, line.length - col);
-		for (let i = col; i < col + n; i++) this.backgroundCells.delete(`${row},${i}`);
+		for (let i = col; i < col + n; i++) this.backgroundCells.delete(row * 4096 + i);
 		this.lines[row] = line.slice(0, col) + ' '.repeat(n) + line.slice(col + n);
 		this.onRenderRow?.(row);
 	}
@@ -660,8 +660,14 @@ export class VimEngine {
 		} else {
 			left = `-- ${this.mode} --`;
 			if (this.commandCount > 0)   left += `  ${this.commandCount}`;
-			if (this.pendingRegister)     left += ` "${this.pendingRegister}`;
-			if (this.pendingOperator)     left += this.pendingOperator;
+			if (this.pendingRegister) {
+				if (this.pendingRegister === '"') {
+					left += ' " [select reg: s/r/p/b]';
+				} else {
+					left += ` "${this.pendingRegister} [type p to paste]`;
+				}
+			}
+			if (this.pendingOperator)     left += ` ${this.pendingOperator}`;
 		}
 		this.onStatusUpdate?.(left, `${this.cursorRow + 1},${this.cursorCol + 1}`);
 	}

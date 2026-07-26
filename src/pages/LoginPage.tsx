@@ -109,7 +109,7 @@ export default function LoginPage() {
     }, [isLoading, user, login]);
 
     useEffect(() => {
-        if (!containerRef.current || gameRef.current) return;
+        if (isLoading || !containerRef.current || gameRef.current) return;
 
         const config: Types.Core.GameConfig = {
             type: AUTO,
@@ -117,10 +117,14 @@ export default function LoginPage() {
             height: '100%',
             parent: containerRef.current,
             backgroundColor: '#050505',
-            pixelArt: true,
             scale: {
                 mode: Scale.RESIZE,
                 autoCenter: Scale.CENTER_BOTH,
+            },
+            render: {
+                pixelArt: false,
+                roundPixels: true,
+                antialias: true
             },
             scene: [LoginBackground],
         };
@@ -133,7 +137,7 @@ export default function LoginPage() {
                 gameRef.current = null;
             }
         };
-    }, []);
+    }, [isLoading]);
 
     if (isLoading) return null;
 

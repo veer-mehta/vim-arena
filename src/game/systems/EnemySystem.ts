@@ -32,7 +32,7 @@ export class EnemySystem {
         const diff = this.gameState.difficulty;
 
         this.spawnTimer -= delta;
-        if (this.spawnTimer <= 0) {
+        if (this.spawnTimer <= 0 && this.enemies.length < 35) {
             this.spawnTimer = Math.max(400, 3000 / diff);
             this.spawnEnemy(scrollX, scrollY, vpW, vpH, diff);
         }
@@ -48,9 +48,17 @@ export class EnemySystem {
             }
         }
 
-        // Sweep dead / exited enemies
+        const minX = scrollX - 400;
+        const maxX = scrollX + vpW + 400;
+        const minY = scrollY - 400;
+        const maxY = scrollY + vpH + 400;
+
+        // Sweep dead / exited / out-of-bounds enemies
         for (let i = this.enemies.length - 1; i >= 0; i--) {
             const e = this.enemies[i];
+            if (e.x < minX || e.x > maxX || e.y < minY || e.y > maxY) {
+                e.hasExited = true;
+            }
             if (e.isDead || e.hasExited) {
                 e.destroy();
                 this.enemies.splice(i, 1);

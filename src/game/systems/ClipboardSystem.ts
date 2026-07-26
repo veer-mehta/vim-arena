@@ -16,6 +16,7 @@ export class ClipboardSystem {
 			['sniper', 's'],
 			['rapid', 'r'],
 			['pulse', 'p'],
+			['bomb', 'b'],
 		];
 		for (const [id, reg] of defaultTowers) {
 			const t = TOWER_TYPES[id];

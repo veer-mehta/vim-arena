@@ -10,6 +10,7 @@ export interface TowerType {
 	readonly scoreValue: number;      // score per enemy kill
 	readonly pattern: string[];       // multi-character pattern
 	readonly isAoe?: boolean;         // true if attacks deal AoE damage
+	readonly explosionRadius?: number; // optional explosion radius for bomb projectile
 }
 
 // Tower patterns based on the provided image
@@ -63,6 +64,23 @@ export const TOWER_TYPES: Record<string, TowerType> = {
 			'* O *',
 			' * * ',
 			'  *  '
+		]
+	},
+	'bomb': {
+		char: 'B',
+		name: 'Bomb Tower',
+		maxHp: 4,
+		damage: 2,
+		range: 220,
+		fireRate: 0.5,
+		projectileSpeed: 300,
+		color: 0xff7733,
+		scoreValue: 20,
+		explosionRadius: 64,
+		pattern: [
+			' (o) ',
+			'  •  ',
+			' [B] '
 		]
 	}
 };

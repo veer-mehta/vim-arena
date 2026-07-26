@@ -25,6 +25,7 @@ export class TowerSystem {
     private towerPatterns: Map<string, { type: string; startCol: number; startRow: number }> = new Map();
     // Custom tower types created by paste — kept separate to avoid polluting TOWER_TYPES
     private dynamicTowerTypes: Map<string, TowerType> = new Map();
+    private occupiedTowerCells: Set<number> = new Set();
 
     public onTowerCreated?: (name: string, col: number, row: number) => void;
     public onTowerDestroyed?: (col: number, row: number, name?: string) => void;
@@ -61,7 +62,7 @@ export class TowerSystem {
             this.vim.lines[lineIndex] = before + pattern[i] + after;
             
             for (let c = 0; c < pattern[i].length; c++) {
-                this.vim.backgroundCells.delete(`${lineIndex},${startCol + c}`);
+                this.vim.backgroundCells.delete(lineIndex * 4096 + startCol + c);
             }
         }
     }
@@ -110,16 +111,23 @@ export class TowerSystem {
 
     /** Returns true if the buffer cell (col, row) is part of any live tower's pattern. */
     public isPartOfTower(col: number, row: number): boolean {
-        for (const [key, info] of this.towerPatterns.entries()) {
-            const tower = this.towers.get(key);
-            if (!tower || tower.isDead) continue;
-            const type = this.getTowerTypeById(info.type);
-            if (!type) continue;
-            if (row < info.startRow || row >= info.startRow + type.pattern.length) continue;
-            const patRow = row - info.startRow;
-            if (col >= info.startCol && col < info.startCol + type.pattern[patRow].length) return true;
+        return this.occupiedTowerCells.has(row * 4096 + col);
+    }
+
+    private registerTowerCells(startCol: number, startRow: number, pattern: string[]): void {
+        for (let r = 0; r < pattern.length; r++) {
+            for (let c = 0; c < pattern[r].length; c++) {
+                this.occupiedTowerCells.add((startRow + r) * 4096 + (startCol + c));
+            }
         }
-        return false;
+    }
+
+    private unregisterTowerCells(startCol: number, startRow: number, pattern: string[]): void {
+        for (let r = 0; r < pattern.length; r++) {
+            for (let c = 0; c < pattern[r].length; c++) {
+                this.occupiedTowerCells.delete((startRow + r) * 4096 + (startCol + c));
+            }
+        }
     }
 
     private countShootingTowers(): number {
@@ -145,6 +153,7 @@ export class TowerSystem {
             }
             if (mismatch) {
                 this.onTowerDeletedByEdit?.(towerType.name ?? info.type, info.startCol, info.startRow);
+                this.unregisterTowerCells(info.startCol, info.startRow, towerType.pattern);
                 tower.destroy();
                 this.towers.delete(key);
                 this.towerPatterns.delete(key);
@@ -167,7 +176,7 @@ export class TowerSystem {
                     const nextLine = lines[row + r] || '';
                     for (let c = 0; c < towerType.pattern[r].length; c++) {
                         if (nextLine[foundCol + c] !== towerType.pattern[r][c]) { match = false; break; }
-                        if (towerType.pattern[r][c] !== ' ' && this.vim.backgroundCells.has(`${row + r},${foundCol + c}`)) {
+                        if (towerType.pattern[r][c] !== ' ' && this.vim.backgroundCells.has((row + r) * 4096 + foundCol + c)) {
                             hasBackgroundCell = true;
                         }
                     }
@@ -182,6 +191,7 @@ export class TowerSystem {
                     const wy = (row * this.fontHeight) + (patternHeight * this.fontHeight) / 2;
                     
                     this.towerPatterns.set(key, { type: typeId, startCol: foundCol, startRow: row });
+                    this.registerTowerCells(foundCol, row, towerType.pattern);
                     this.towers.set(key, new Tower(this.scene, foundCol, row, wx, wy, towerType, patternWidth * this.fontWidth, patternHeight * this.fontHeight, this.gutterWidth, this.fontWidth, this.fontHeight, foundCol, row));
                     this.onTowerCreated?.(towerType.name, foundCol, row);
                 }
@@ -214,12 +224,13 @@ export class TowerSystem {
             if (info) {
                 const towerType = this.getTowerTypeById(info.type);
                 if (towerType) {
+                    this.unregisterTowerCells(info.startCol, info.startRow, towerType.pattern);
                     for (let i = 0; i < towerType.pattern.length; i++) {
                         const li = info.startRow + i;
                         if (li < this.vim.lines.length) {
                             for (let c = 0; c < towerType.pattern[i].length; c++) {
                                 if (towerType.pattern[i][c] !== ' ') {
-                                    this.vim.backgroundCells.add(`${li},${info.startCol + c}`);
+                                    this.vim.backgroundCells.add(li * 4096 + info.startCol + c);
                                 }
                             }
                             this.vim.onRenderRow?.(li);
