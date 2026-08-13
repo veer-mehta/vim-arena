@@ -69,6 +69,8 @@ export class ClipboardSystem {
 		const areaSize = width * height;
 
 		const croppedYank = this.cropPattern(pattern);
+		if (croppedYank.length === 0) return false;
+
 		const known = Object.values(TOWER_TYPES).find(t => {
 			const croppedT = this.cropPattern(t.pattern);
 			if (croppedT.length !== croppedYank.length) return false;
@@ -85,10 +87,12 @@ export class ClipboardSystem {
 			projectileSpeed: 0,
 			color: 0x888888,
 			scoreValue: 0,
-			pattern,
+			pattern: croppedYank,
 		};
 
-		const entry = { towerType, pattern, baseEnergyCost: areaSize };
+		const cWidth = Math.max(...croppedYank.map(l => l.length));
+		const cHeight = croppedYank.length;
+		const entry = { towerType, pattern: croppedYank, baseEnergyCost: cWidth * cHeight };
 		this.unnamedRegister = entry;
 		if (register !== '"') {
 			this.namedRegisters.set(register, entry);

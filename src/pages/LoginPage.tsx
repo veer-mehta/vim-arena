@@ -46,6 +46,7 @@ export default function LoginPage() {
                 const cmd = commandBuffer.trim().toLowerCase();
                 if (cmd === ':lb' || cmd === ':leaderboard') navigate('/leaderboard');
                 if (cmd === ':p' || cmd === ':play') navigate('/play');
+                if (cmd === ':t' || cmd === ':tutorial') navigate('/tutorial');
                 if (cmd === ':db' || cmd === ':dashboard') navigate('/dashboard');
                 setCommandBuffer(''); 
                 setNavHint('');
@@ -65,6 +66,8 @@ export default function LoginPage() {
                     setCommandBuffer(next);
                     if (':leaderboard'.startsWith(next) || ':lb'.startsWith(next))
                         setNavHint('LB \u2192 Leaderboard');
+                    else if (':tutorial'.startsWith(next) || ':t'.startsWith(next))
+                        setNavHint('Tutorial \u2192 How to Play');
                     else
                         setNavHint('');
                 }

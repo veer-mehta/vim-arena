@@ -61,6 +61,7 @@ export default function DashboardPage() {
             if (e.key === 'Enter') {
                 const cmd = cmdRef.current.trim().toLowerCase();
                 if (cmd === ':play') navigate('/play');
+                else if (cmd === ':tutorial') navigate('/tutorial');
                 else if (cmd === ':leaderboard' || cmd === ':lb') navigate('/leaderboard');
                 else if (cmd === ':q!' || cmd === ':q') handleLogout();
                 setCommandBuffer('');
@@ -149,6 +150,7 @@ export default function DashboardPage() {
 
     let cmdHint = '';
     if (commandBuffer.startsWith(':p')) cmdHint = 'play → Enter Arena';
+    else if (commandBuffer.startsWith(':t')) cmdHint = 'tutorial → How to Play';
     else if (commandBuffer.startsWith(':l')) cmdHint = 'lb → Leaderboard';
     else if (commandBuffer.startsWith(':q')) cmdHint = 'q! > Quit/Logout';
 

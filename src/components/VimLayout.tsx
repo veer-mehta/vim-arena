@@ -44,6 +44,19 @@ export function VimLayout({
                     {/* ── Body ── */}
                     <div ref={bodyRef} className="vim-body" style={{ padding: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: bodyAlignItems }}>
                         {children}
+                        <div style={{
+                            marginTop: 'auto',
+                            padding: '32px 24px 24px',
+                            textAlign: 'center',
+                            fontSize: '10px',
+                            fontFamily: '"Press Start 2P", monospace',
+                            color: 'var(--text-dim)',
+                            width: '100%',
+                            letterSpacing: '1px',
+                            opacity: 0.8
+                        }}>
+                            MADE BY <a href="https://veermehta.dev" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--yellow)', textDecoration: 'none', transition: 'opacity 0.2s' }} onMouseEnter={e => e.currentTarget.style.opacity = '0.8'} onMouseLeave={e => e.currentTarget.style.opacity = '1'}>VEER MEHTA</a>
+                        </div>
                     </div>
                 </div>
 

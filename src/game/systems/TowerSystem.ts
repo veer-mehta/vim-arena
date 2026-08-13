@@ -47,21 +47,24 @@ export class TowerSystem {
     }
 
     private writePatternToBuffer(startCol: number, startRow: number, pattern: string[]): void {
+        startCol = Math.max(0, Math.floor(startCol));
+        startRow = Math.max(0, Math.floor(startRow));
         for (let i = 0; i < pattern.length; i++) {
             const lineIndex = startRow + i;
             while (this.vim.lines.length <= lineIndex) this.vim.lines.push('');
             
             let line = this.vim.lines[lineIndex] || '';
-            const minLengthNeeded = startCol + pattern[i].length;
+            const pLine = pattern[i] || '';
+            const minLengthNeeded = startCol + pLine.length;
             if (line.length < minLengthNeeded) {
                 line = line.padEnd(minLengthNeeded, ' ');
             }
             
-            const before = line.slice(0, startCol);
-            const after = line.slice(startCol + pattern[i].length);
-            this.vim.lines[lineIndex] = before + pattern[i] + after;
+            const before = line.substring(0, startCol);
+            const after = line.substring(startCol + pLine.length);
+            this.vim.lines[lineIndex] = before + pLine + after;
             
-            for (let c = 0; c < pattern[i].length; c++) {
+            for (let c = 0; c < pLine.length; c++) {
                 this.vim.backgroundCells.delete(lineIndex * 4096 + startCol + c);
             }
         }

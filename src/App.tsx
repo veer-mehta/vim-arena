@@ -17,6 +17,7 @@ export default function App() {
                     <Route path="/dashboard" element={<DashboardPage />} />
                     <Route path="/leaderboard" element={<LeaderboardPage />} />
                     <Route path="/play" element={<GamePage />} />
+                    <Route path="/tutorial" element={<GamePage mode="tutorial" />} />
                     <Route path="*" element={<Navigate to="/dashboard" replace />} />
                 </Routes>
             </AuthProvider>

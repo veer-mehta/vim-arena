@@ -5,6 +5,7 @@ import { EnemySystem } from '../systems/EnemySystem';
 import { TowerSystem } from '../systems/TowerSystem';
 import { CombatSystem } from '../systems/CombatSystem';
 import { BackgroundTextSystem } from '../systems/BackgroundTextSystem';
+import { TutorialSystem } from '../systems/TutorialSystem';
 import { THEMES, ThemeName } from '../../context/ThemeContext';
 
 const FONT_HEIGHT = 20;
@@ -32,6 +33,7 @@ export class Game extends Scene {
 	private combatSystem!: CombatSystem;
 	private gameState!: GameState;
 	private backgroundSystem!: BackgroundTextSystem;
+	private tutorialSystem?: TutorialSystem;
 	// --- Game Over Overlay ---
 	private gameOverOverlay!: GameObjects.Rectangle;
 	private gameOverContainer!: GameObjects.Container;
@@ -185,6 +187,13 @@ export class Game extends Scene {
 			this.renderText();
 			this.towerSystem.scanRow(row);
 		};
+
+		if (this.registry.get('mode') === 'tutorial') {
+			this.tutorialSystem = new TutorialSystem(this, this.engine);
+			this.enemySystem.spawnEnabled = false;
+			this.gameState.energy = 9999;
+			if (this.gameState.onEnergyChange) this.gameState.onEnergyChange(this.gameState.energy);
+		}
 		this.engine.onEnergyCost = (amount: number) => {
 			if (this.gameState.tryConsumeEnergy(amount)) return true;
 			this.flashEnergyHUD();

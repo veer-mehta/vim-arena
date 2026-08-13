@@ -14,10 +14,12 @@ export function NavBar({ activePage }: { activePage?: 'dashboard' | 'leaderboard
 
     const commands = activePage === 'dashboard' ? [
         { key: ':play', desc: 'Enter Arena', color: 'var(--yellow)',     onClick: () => navigate('/play') },
+        { key: ':tutorial', desc: 'How to Play', color: 'var(--text)',   onClick: () => navigate('/tutorial') },
         { key: ':lb',   desc: 'Leaderboard', color: 'var(--text)',       onClick: () => navigate('/leaderboard') },
         { key: ':q!',   desc: 'Logout',       color: 'var(--text-muted)', onClick: handleLogout },
     ] : [
         { key: ':play', desc: 'Enter Arena', color: 'var(--yellow)',     onClick: () => navigate('/play') },
+        { key: ':tutorial', desc: 'How to Play', color: 'var(--text)',   onClick: () => navigate('/tutorial') },
         { key: ':db',   desc: 'Dashboard',   color: 'var(--text)',       onClick: () => navigate('/dashboard') },
         { key: ':q!',   desc: 'Logout',       color: 'var(--text-muted)', onClick: handleLogout },
     ];

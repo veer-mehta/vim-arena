@@ -10,6 +10,7 @@ export class EnemySystem {
     private readonly fontWidth: number;
     private readonly fontHeight: number;
 
+    public spawnEnabled: boolean = true;
     private enemies: Enemy[] = [];
     private spawnTimer: number = 0;
     private getTowers: () => Tower[] = () => [];
@@ -32,7 +33,7 @@ export class EnemySystem {
         const diff = this.gameState.difficulty;
 
         this.spawnTimer -= delta;
-        if (this.spawnTimer <= 0 && this.enemies.length < 35) {
+        if (this.spawnEnabled && this.spawnTimer <= 0 && this.enemies.length < 35) {
             this.spawnTimer = Math.max(400, 3000 / diff);
             this.spawnEnemy(scrollX, scrollY, vpW, vpH, diff);
         }

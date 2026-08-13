@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { AUTO, Game, Scale, Types } from 'phaser';
 import { Game as MainGame } from '../game/scenes/Game';
 
-export default function GamePage() {
+export default function GamePage({ mode }: { mode?: string }) {
     const { user, isLoading } = useAuth();
     const navigate = useNavigate();
     const gameRef = useRef<Game | null>(null);
@@ -56,6 +56,13 @@ export default function GamePage() {
                 roundPixels: true,
                 antialias: true
             },
+            callbacks: {
+                preBoot: (game) => {
+                    if (mode) {
+                        game.registry.set('mode', mode);
+                    }
+                }
+            },
             scene: [MainGame],
         };
 
@@ -68,7 +75,7 @@ export default function GamePage() {
                 gameRef.current = null;
             }
         };
-    }, [isLoading, user, navigate]);
+    }, [isLoading, user, navigate, mode]);
 
     if (isLoading || !user) return null;
 
