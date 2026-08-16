@@ -17,6 +17,7 @@ export class Enemy {
 	public targetX: number;
 	public targetY: number;
 	public readonly label: string | null = null;
+	public frozen: boolean = false;
 
 	private body: GameObjects.Text;
 	private scene: Scene;
@@ -58,6 +59,21 @@ export class Enemy {
 		this.targetY = y;
 	}
 
+	forceLabel(char: string): void {
+		// Remove existing label if any
+		if ((this.body as any).labelChild) {
+			(this.body as any).labelChild.destroy();
+		}
+		(this as any).label = char;
+		const labelText = this.scene.add.text(this.body.x, this.body.y - 20, char, {
+			fontFamily: '"Press Start 2P", monospace',
+			fontSize: '10px',
+			color: '#ffff00',
+			backgroundColor: '#000000'
+		}).setOrigin(0.5);
+		(this.body as any).labelChild = labelText;
+	}
+
 	takeDamage(amount: number): boolean {
 		if (this.isDead) return true;
 		this.hp = Math.max(0, this.hp - amount);
@@ -83,6 +99,14 @@ export class Enemy {
 
 	update(delta: number): void {
 		if (this.isDead || this.hasExited) return;
+		if (this.frozen) {
+			// Still update visual position but don't move
+			if ((this.body as any).labelChild) {
+				(this.body as any).labelChild.x = this.body.x;
+				(this.body as any).labelChild.y = this.body.y - 20;
+			}
+			return;
+		}
 		const dt = delta / 1000;
 		const dx = this.targetX - this.x;
 		const dy = this.targetY - this.y;

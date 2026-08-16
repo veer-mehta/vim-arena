@@ -1,5 +1,6 @@
 import { Scene, GameObjects } from 'phaser';
 import { VimEngine } from '../vim/VimEngine';
+import { Enemy } from '../entities/Enemy';
 
 export class TutorialSystem {
     private scene: Scene;
@@ -51,6 +52,8 @@ export class TutorialSystem {
     
     public isActive: boolean = false;
     private isTransitioning: boolean = false;
+    private searchBugRef: Enemy | null = null;
+    private searchRespawnTimer: Phaser.Time.TimerEvent | null = null;
 
     constructor(scene: Scene, engine: VimEngine) {
         this.scene = scene;
@@ -352,28 +355,7 @@ export class TutorialSystem {
                 break;
             }
             case 24: {
-                const enemySys = (this.scene as any).enemySystem;
-                let bug: any = null;
-                if (enemySys) {
-                    const cam = this.scene.cameras.main;
-                    for (let i = 0; i < 20; i++) {
-                        enemySys.spawnEnemy(cam.scrollX, cam.scrollY, cam.width, cam.height, 1.0);
-                        bug = enemySys.activeEnemies[enemySys.activeEnemies.length - 1];
-                        if (bug.label) break;
-                        bug.isDead = true;
-                        bug.hasExited = true;
-                        bug.destroy();
-                        enemySys.activeEnemies.pop();
-                    }
-                    if (bug && bug.label) {
-                        bug.x = cam.scrollX + cam.width * 0.6;
-                        bug.y = cam.scrollY + cam.height * 0.5;
-                        bug.targetX = bug.x;
-                        bug.targetY = bug.y;
-                        this.targetSearchQuery = bug.label;
-                        this.requireSearch = true;
-                    }
-                }
+                this.spawnSearchEnemy();
                 const label = this.targetSearchQuery || 'a';
                 this.instructionText.setText(`Uh oh, there's a bug lurking nearby!\nSee the letter '${label}' over its head?\n\nType /${label} and press Enter to search and zap it!`);
                 break;
@@ -389,6 +371,59 @@ export class TutorialSystem {
         }
         
         this.updateProgressText();
+    }
+
+    private spawnSearchEnemy(): void {
+        const enemySys = (this.scene as any).enemySystem;
+        if (!enemySys) return;
+
+        const cam = this.scene.cameras.main;
+        const label = String.fromCharCode(97 + Math.floor(Math.random() * 26));
+
+        // Spawn an enemy and force it to have a label
+        enemySys.spawnEnemy(cam.scrollX, cam.scrollY, cam.width, cam.height, 1.0);
+        const bug = enemySys.activeEnemies[enemySys.activeEnemies.length - 1] as Enemy;
+
+        // Force a label onto it
+        bug.forceLabel(label);
+
+        // Position it visibly on screen and freeze it
+        bug.x = cam.scrollX + cam.width * 0.6;
+        bug.y = cam.scrollY + cam.height * 0.5;
+        bug.targetX = bug.x;
+        bug.targetY = bug.y;
+        bug.frozen = true;
+
+        this.searchBugRef = bug;
+        this.targetSearchQuery = label;
+        this.requireSearch = true;
+
+        // Cancel any existing respawn timer
+        if (this.searchRespawnTimer) {
+            this.searchRespawnTimer.destroy();
+            this.searchRespawnTimer = null;
+        }
+
+        // Periodically check if the bug died before the player could search it
+        this.searchRespawnTimer = this.scene.time.addEvent({
+            delay: 500,
+            loop: true,
+            callback: () => {
+                if (this.step !== 24 || this.searchCompleted) {
+                    // Step completed or moved on, stop checking
+                    this.searchRespawnTimer?.destroy();
+                    this.searchRespawnTimer = null;
+                    return;
+                }
+                if (this.searchBugRef && (this.searchBugRef.isDead || this.searchBugRef.hasExited)) {
+                    // Enemy was killed by towers or exited — spawn a new one
+                    this.spawnSearchEnemy();
+                    const newLabel = this.targetSearchQuery || 'a';
+                    this.instructionText.setText(`Uh oh, there's a bug lurking nearby!\nSee the letter '${newLabel}' over its head?\n\nType /${newLabel} and press Enter to search and zap it!`);
+                    this.updateProgressText();
+                }
+            }
+        });
     }
 
     private updateProgressText() {
